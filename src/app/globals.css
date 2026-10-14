@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,300..900;1,300..900&family=Space+Grotesk:wght@300..700&display=swap');
+
+:root {
+  /* TunedIn Light Theme Tokens */
+  --surface: #fbf9f3;
+  --surface-dim: #dcdad4;
+  --surface-bright: #fbf9f3;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f5f3ed;
+  --surface-container: #f0eee8;
+  --surface-container-high: #eae8e2;
+  --surface-container-highest: #e4e2dd;
+  --on-surface: #1b1c18;
+  --on-surface-variant: #594138;
+  --inverse-surface: #30312d;
+  --inverse-on-surface: #f3f1eb;
+  --outline: #8d7166;
+  --outline-variant: #e1bfb2;
+  --surface-tint: #a43d00;
+  --primary: #a03b00;
+  --on-primary: #ffffff;
+  --primary-container: #c94c00;
+  --on-primary-container: #fffbff;
+  --inverse-primary: #ffb597;
+  --secondary: #5f5e5e;
+  --on-secondary: #ffffff;
+  --secondary-container: #e2dfde;
+  --on-secondary-container: #636262;
+  --tertiary: #5c5c5c;
+  --on-tertiary: #ffffff;
+  --tertiary-container: #747474;
+  --on-tertiary-container: #fefcfc;
+  --error: #ba1a1a;
+  --on-error: #ffffff;
+  --error-container: #ffdad6;
+  --on-error-container: #93000a;
+  --primary-fixed: #ffdbcd;
+  --primary-fixed-dim: #ffb597;
+  --on-primary-fixed: #360f00;
+  --on-primary-fixed-variant: #7d2d00;
+  --secondary-fixed: #e5e2e1;
+  --secondary-fixed-dim: #c8c6c5;
+  --on-secondary-fixed: #1c1b1b;
+  --on-secondary-fixed-variant: #474746;
+  --tertiary-fixed: #e3e2e2;
+  --tertiary-fixed-dim: #c7c6c6;
+  --on-tertiary-fixed: #1b1c1c;
+  --on-tertiary-fixed-variant: #464747;
+  --background: #fbf9f3;
+  --on-background: #1b1c18;
+  --surface-variant: #e4e2dd;
+
+  /* Editorial & Tactile Brand Aliases */
+  --canvas-base: #f8f6f0;
+  --surface-card: #ffffff;
+  --text-primary: #1a1a1a;
+  --text-muted: #737373;
+  --brand-accent: #f26419;
+  --brand-accent-hover: #d9530d;
+  --brand-accent-gradient: linear-gradient(135deg, #f26419 0%, #ff833d 100%);
+  --border-subtle: #e6e2da;
+
+  /* Warm Amber-Sand Calibrated Elevations */
+  --elevation-1: 0 2px 8px -2px rgba(60, 45, 20, 0.04), 0 1px 3px 0 rgba(60, 45, 20, 0.02);
+  --elevation-2: 0 10px 24px -4px rgba(60, 45, 20, 0.08), 0 4px 8px -2px rgba(60, 45, 20, 0.03);
+  --elevation-3: 0 -4px 20px 0 rgba(60, 45, 20, 0.06);
+
+  /* Fonts */
+  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html {
+  height: 100%;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+  background: var(--canvas-base);
+  font-family: var(--font-body);
+  font-feature-settings: 'tnum' 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand-accent {
+  background: var(--brand-accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  display: inline-block;
+}
+
+
