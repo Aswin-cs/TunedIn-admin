@@ -55,10 +55,9 @@ const songSchema = new mongoose.Schema({
         enum: ["pending", "verified", "rejected"],
         default: "pending"
     },
-    verifiedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        default: null
+    verified: {
+        type: Boolean,
+        default: false
     },
     verificationDate: {
         type: Date,
