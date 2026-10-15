@@ -779,3 +779,315 @@
     font-size: 0.65rem;
   }
 }
+
+/* User Model Form & Pre-Auth Steps */
+.stepHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #eaedff;
+}
+
+.stepTitle {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #131b2e;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.stepBadge {
+  background-color: #f26419;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modelBadge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #a63500;
+  background-color: #ffede6;
+  border: 1px solid rgba(166, 53, 0, 0.2);
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.375rem;
+}
+
+.userForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: linear-gradient(180deg, #fbfcfe 0%, #f4f6fc 100%);
+  border: 1px solid #dae2fd;
+  border-radius: 0.875rem;
+  padding: 1.25rem;
+  box-shadow: 0 2px 8px rgba(19, 27, 46, 0.03);
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: left;
+}
+
+.fieldLabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #131b2e;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.requiredAsterisk {
+  color: #d04400;
+  font-weight: 700;
+}
+
+.inputControl {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid #c1c7cf;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.875rem;
+  color: #131b2e;
+  background-color: #ffffff;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.inputControl:focus {
+  border-color: #a63500;
+  box-shadow: 0 0 0 3px rgba(166, 53, 0, 0.15);
+}
+
+.inputControl:disabled {
+  background-color: #eaedff;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.fieldHint {
+  font-size: 0.72rem;
+  color: #6e5a50;
+  margin: 0;
+}
+
+.verifiedPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: #00875a;
+  background-color: #e3fcef;
+  border: 1px solid #abf5d1;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+}
+
+.unverifiedPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: #b76e00;
+  background-color: #fff8e6;
+  border: 1px solid #ffe380;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+}
+
+.formSubmitBtn {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #a63500 0%, #c44000 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 0.625rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 12px rgba(166, 53, 0, 0.25);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.formSubmitBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #8a2c00 0%, #a63500 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(166, 53, 0, 0.35);
+}
+
+.formSubmitBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.ssoButtonDisabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+  background-color: #f0f1f5 !important;
+  border-color: #d1d5db !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.ssoButtonDisabled:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.oauthLockNotice {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #822700;
+  background-color: #ffede6;
+  border: 1px solid #ffd6c4;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+}
+
+.oauthUnlockedNotice {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #0b6b38;
+  background-color: #e6f9ee;
+  border: 1px solid #b7ebd0;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+}
+
+.errorBanner {
+  background-color: #fff0f0;
+  border: 1px solid #ffcccc;
+  color: #c92a2a;
+  border-radius: 0.625rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.sessionCard {
+  background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+  border: 1px solid #c7d5fc;
+  border-radius: 0.875rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.sessionAvatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 9999px;
+  background: #a63500;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(166, 53, 0, 0.25);
+}
+
+.sessionName {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #131b2e;
+  margin: 0;
+}
+
+.sessionEmail {
+  font-size: 0.82rem;
+  color: #565d63;
+  margin: 0.25rem 0 0 0;
+}
+
+.sessionRoleBadge {
+  display: inline-block;
+  background-color: #ffdbcf;
+  color: #a63500;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  margin-top: 0.4rem;
+}
+
+.sessionActions {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.btnPrimary {
+  flex: 1;
+  padding: 0.7rem;
+  background: #131b2e;
+  color: #ffffff;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+  transition: background 0.15s ease;
+}
+
+.btnPrimary:hover {
+  background: #253354;
+}
+
+.btnSecondary {
+  padding: 0.7rem 1rem;
+  background: #ffffff;
+  border: 1px solid #c1c7cf;
+  color: #565d63;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btnSecondary:hover {
+  background: #f2f3ff;
+  color: #131b2e;
+}

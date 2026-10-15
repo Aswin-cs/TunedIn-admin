@@ -26,7 +26,16 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     }
-
 });
 
-export const User = mongoose.model("User", userSchema);
+export interface IUser {
+    _id?: mongoose.Types.ObjectId | string;
+    username: string;
+    email: string;
+    role: "admin" | "subadmin" | "editor";
+    verified: boolean;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+
+export const User = mongoose.models.User || mongoose.model("User", userSchema);

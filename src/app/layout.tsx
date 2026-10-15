@@ -17,7 +17,9 @@ export const metadata: Metadata = {
   description: "Audio Operations & Catalog Ingestion Studio",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+import AuthProvider from "@/components/AuthProvider";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <head>
@@ -26,8 +28,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }
+
 
