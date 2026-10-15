@@ -1960,3 +1960,470 @@
     opacity: 1;
   }
 }
+
+/* ==========================================================================
+   Admin Panel View Styles
+   ========================================================================== */
+
+.adminPanelWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+.adminTelemetryBar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .adminTelemetryBar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.adminStatsGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .adminStatsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .adminStatsGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.adminCard {
+  background-color: #ffffff;
+  border: 1px solid #E6E2DA;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
+}
+
+.adminCardHeader {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #E6E2DA;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background-color: rgba(245, 243, 237, 0.4);
+}
+
+@media (min-width: 640px) {
+  .adminCardHeader {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.adminFilterControls {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #E6E2DA;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background-color: #ffffff;
+}
+
+@media (min-width: 768px) {
+  .adminFilterControls {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.adminRoleTabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.adminRoleTabBtn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #E6E2DA;
+  background-color: #ffffff;
+  color: #5f5e5e;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.adminRoleTabBtn:hover {
+  background-color: #f5f3ed;
+  color: #1b1c18;
+}
+
+.adminRoleTabBtnActive {
+  background-color: #FFF2EB;
+  color: #A03B00;
+  border-color: rgba(242, 100, 25, 0.3);
+  font-weight: 700;
+}
+
+.adminSearchInputWrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: rgba(245, 243, 237, 0.7);
+  border: 1px solid #E6E2DA;
+  border-radius: 8px;
+  padding: 6px 12px;
+  min-width: 260px;
+}
+
+.adminSearchInputField {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: #1b1c18;
+  width: 100%;
+}
+
+.adminUserCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.adminUserAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display, 'Space Grotesk', sans-serif);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.adminUserName {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1b1c18;
+  line-height: 1.2;
+}
+
+.adminUserEmail {
+  font-size: 12px;
+  color: #5f5e5e;
+}
+
+.roleBadgePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.mfaBadgeVerified {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.mfaBadgePending {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: #fffbeb;
+  color: #d97706;
+  border: 1px solid rgba(217, 119, 6, 0.25);
+}
+
+.policyGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .policyGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  .policyGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.policyCard {
+  background-color: #fbf9f3;
+  border: 1px solid #E6E2DA;
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  transition: all 0.2s ease;
+}
+
+.policyCard:hover {
+  background-color: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.policyCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.policyCardTitle {
+  font-family: var(--font-display, 'Space Grotesk', sans-serif);
+  font-size: 14px;
+  font-weight: 700;
+  color: #1b1c18;
+  margin-bottom: 4px;
+}
+
+.policyCardDesc {
+  font-size: 12px;
+  color: #5f5e5e;
+  line-height: 1.4;
+}
+
+/* Toggle Switch */
+.switchLabel {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.switchInput {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switchSlider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #E6E2DA;
+  border-radius: 24px;
+  transition: 0.2s ease;
+}
+
+.switchSlider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  transition: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.switchInput:checked + .switchSlider {
+  background-color: #A03B00;
+}
+
+.switchInput:checked + .switchSlider:before {
+  transform: translateX(20px);
+}
+
+/* Audit Log List */
+.auditList {
+  display: flex;
+  flex-direction: column;
+}
+
+.auditItem {
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: background-color 0.15s ease;
+  border-bottom: 1px solid #E6E2DA;
+}
+
+.auditItem:last-child {
+  border-bottom: none;
+}
+
+.auditItem:hover {
+  background-color: rgba(245, 243, 237, 0.5);
+}
+
+@media (min-width: 640px) {
+  .auditItem {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.auditItemLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auditActorBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background-color: #FFF2EB;
+  color: #A03B00;
+  border: 1px solid rgba(242, 100, 25, 0.2);
+}
+
+.auditActionText {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1b1c18;
+}
+
+.auditTarget {
+  font-family: var(--font-display, 'Space Grotesk', sans-serif);
+  font-size: 12px;
+  color: #5f5e5e;
+}
+
+.auditMetaRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: #5f5e5e;
+}
+
+/* Modal */
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modalCard {
+  background-color: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #E6E2DA;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  animation: modalScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes modalScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modalHeader {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #E6E2DA;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: rgba(245, 243, 237, 0.4);
+}
+
+.modalTitle {
+  font-family: var(--font-display, 'Space Grotesk', sans-serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: #1b1c18;
+}
+
+.modalCloseBtn {
+  background: none;
+  border: none;
+  color: #5f5e5e;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.modalCloseBtn:hover {
+  background-color: #E6E2DA;
+  color: #1b1c18;
+}
+
+.modalBody {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.modalFooter {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #E6E2DA;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background-color: rgba(245, 243, 237, 0.3);
+}

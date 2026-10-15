@@ -21,6 +21,149 @@ interface CatalogTrack {
   category: "all" | "processing" | "drafts";
 }
 
+export type AdminRole =
+  | "Super Admin"
+  | "SecOps Engineer"
+  | "Catalog Lead"
+  | "Audio Curator"
+  | "Infrastructure Eng";
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role: AdminRole;
+  roleColor: string;
+  scope: string;
+  mfaStatus: "Verified" | "Enforced" | "Pending";
+  lastActive: string;
+  avatarBg: string;
+  avatarColor: string;
+  online: boolean;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  actor: string;
+  role: string;
+  action: string;
+  target: string;
+  ip: string;
+  time: string;
+  status: "success" | "warning";
+}
+
+const INITIAL_ADMINS: AdminUser[] = [
+  {
+    id: "adm-1",
+    name: "Aswin",
+    email: "aswin@tunedin.internal",
+    role: "Super Admin",
+    roleColor: "#A03B00",
+    scope: "Full Root & Infrastructure Access",
+    mfaStatus: "Verified",
+    lastActive: "Active now",
+    avatarBg: "#FFF2EB",
+    avatarColor: "#A03B00",
+    online: true,
+  },
+  {
+    id: "adm-2",
+    name: "Elena Vance",
+    email: "elena.v@tunedin.internal",
+    role: "SecOps Engineer",
+    roleColor: "#7c3aed",
+    scope: "Security Policies & WebAuthn Audit",
+    mfaStatus: "Verified",
+    lastActive: "14 mins ago",
+    avatarBg: "#f3e8ff",
+    avatarColor: "#7c3aed",
+    online: true,
+  },
+  {
+    id: "adm-3",
+    name: "Marcus Thorne",
+    email: "marcus.t@tunedin.internal",
+    role: "Catalog Lead",
+    roleColor: "#2563eb",
+    scope: "Cloudflare R2 & Release Metadata",
+    mfaStatus: "Verified",
+    lastActive: "1 hour ago",
+    avatarBg: "#dbeafe",
+    avatarColor: "#2563eb",
+    online: true,
+  },
+  {
+    id: "adm-4",
+    name: "Sarah Jenkins",
+    email: "sarah.j@tunedin.internal",
+    role: "Audio Curator",
+    roleColor: "#059669",
+    scope: "Playlists Curation & Quality Review",
+    mfaStatus: "Verified",
+    lastActive: "3 hours ago",
+    avatarBg: "#d1fae5",
+    avatarColor: "#059669",
+    online: false,
+  },
+  {
+    id: "adm-5",
+    name: "David Chen",
+    email: "d.chen@tunedin.internal",
+    role: "Infrastructure Eng",
+    roleColor: "#d97706",
+    scope: "Transcoding Pipeline & Edge CDN Nodes",
+    mfaStatus: "Verified",
+    lastActive: "Yesterday",
+    avatarBg: "#fef3c7",
+    avatarColor: "#d97706",
+    online: false,
+  },
+];
+
+const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
+  {
+    id: "aud-1",
+    actor: "Aswin",
+    role: "Super Admin",
+    action: "Validated master FLAC audio ingestion schema",
+    target: "ISRC: US-TUN-25-00491",
+    ip: "192.168.1.42 (Frankfurt)",
+    time: "8 mins ago",
+    status: "success",
+  },
+  {
+    id: "aud-2",
+    actor: "Elena Vance",
+    role: "SecOps",
+    action: "Rotated Cloudflare R2 bucket API credentials",
+    target: "r2://masters/2025/*",
+    ip: "10.0.4.11 (Stockholm)",
+    time: "42 mins ago",
+    status: "success",
+  },
+  {
+    id: "aud-3",
+    actor: "Marcus Thorne",
+    role: "Catalog Lead",
+    action: "Approved VIP master transcode profile",
+    target: "Echoes in Obsidian (Deluxe)",
+    ip: "172.16.8.20 (London)",
+    time: "2 hours ago",
+    status: "success",
+  },
+  {
+    id: "aud-4",
+    actor: "System Engine",
+    role: "Automated",
+    action: "Generated encrypted catalog database snapshot",
+    target: "backup-2025-snapshot-08.zst",
+    ip: "Internal Cluster Node 4",
+    time: "4 hours ago",
+    status: "success",
+  },
+];
+
 const INITIAL_TRACKS: CatalogTrack[] = [
   {
     id: "tr-1",
@@ -142,6 +285,157 @@ export default function AdminDashboardPage() {
   // Status & Feedback
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Admin Panel State
+  const [admins, setAdmins] = useState<AdminUser[]>(INITIAL_ADMINS);
+  const [adminSearch, setAdminSearch] = useState("");
+  const [adminRoleFilter, setAdminRoleFilter] = useState("all");
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
+  const [securityPolicies, setSecurityPolicies] = useState({
+    strictMfa: true,
+    r2WriteLock: true,
+    edgeInvalidation: true,
+    dbSnapshots: true,
+    maintenanceMode: false,
+  });
+
+  // Admin Invite Modal State
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<AdminRole>("Audio Curator");
+  const [inviteScope, setInviteScope] = useState("");
+
+  const handleTogglePolicy = (policyKey: keyof typeof securityPolicies, label: string) => {
+    setSecurityPolicies((prev) => {
+      const next = !prev[policyKey];
+      showToast(`${label} policy ${next ? "enabled" : "disabled"}.`);
+      return { ...prev, [policyKey]: next };
+    });
+  };
+
+  const handleInviteAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteName.trim() || !inviteEmail.trim()) {
+      showToast("Please provide both name and email.");
+      return;
+    }
+
+    const roleColors: Record<AdminRole, { bg: string; color: string }> = {
+      "Super Admin": { bg: "#FFF2EB", color: "#A03B00" },
+      "SecOps Engineer": { bg: "#f3e8ff", color: "#7c3aed" },
+      "Catalog Lead": { bg: "#dbeafe", color: "#2563eb" },
+      "Audio Curator": { bg: "#d1fae5", color: "#059669" },
+      "Infrastructure Eng": { bg: "#fef3c7", color: "#d97706" },
+    };
+
+    const newAdmin: AdminUser = {
+      id: `adm-${Date.now()}`,
+      name: inviteName.trim(),
+      email: inviteEmail.trim(),
+      role: inviteRole,
+      roleColor: roleColors[inviteRole].color,
+      scope: inviteScope.trim() || "Standard Department Access",
+      mfaStatus: "Pending",
+      lastActive: "Invited just now",
+      avatarBg: roleColors[inviteRole].bg,
+      avatarColor: roleColors[inviteRole].color,
+      online: false,
+    };
+
+    setAdmins((prev) => [newAdmin, ...prev]);
+    setAuditLogs((prev) => [
+      {
+        id: `aud-${Date.now()}`,
+        actor: "Aswin",
+        role: "Super Admin",
+        action: `Issued administrator invitation to ${inviteName.trim()} (${inviteRole})`,
+        target: inviteEmail.trim(),
+        ip: "192.168.1.42 (Local)",
+        time: "Just now",
+        status: "success",
+      },
+      ...prev,
+    ]);
+
+    setIsInviteModalOpen(false);
+    setInviteName("");
+    setInviteEmail("");
+    setInviteScope("");
+    showToast(`Administrator invitation sent to ${inviteEmail}.`);
+  };
+
+  const handleRevokeAdmin = (id: string, name: string) => {
+    if (name === "Aswin") {
+      showToast("Cannot revoke primary Super Administrator.");
+      return;
+    }
+    setAdmins((prev) => prev.filter((a) => a.id !== id));
+    setAuditLogs((prev) => [
+      {
+        id: `aud-${Date.now()}`,
+        actor: "Aswin",
+        role: "Super Admin",
+        action: `Revoked console permissions for ${name}`,
+        target: `User ID: ${id}`,
+        ip: "192.168.1.42 (Local)",
+        time: "Just now",
+        status: "warning",
+      },
+      ...prev,
+    ]);
+    showToast(`Revoked console privileges for ${name}.`);
+  };
+
+  const handleCycleRole = (id: string, currentRole: AdminRole, name: string) => {
+    if (name === "Aswin") {
+      showToast("Primary account retains permanent Super Admin authorization.");
+      return;
+    }
+    const roles: AdminRole[] = [
+      "Super Admin",
+      "SecOps Engineer",
+      "Catalog Lead",
+      "Audio Curator",
+      "Infrastructure Eng",
+    ];
+    const currentIndex = roles.indexOf(currentRole);
+    const nextRole = roles[(currentIndex + 1) % roles.length];
+
+    const roleColors: Record<AdminRole, { bg: string; color: string }> = {
+      "Super Admin": { bg: "#FFF2EB", color: "#A03B00" },
+      "SecOps Engineer": { bg: "#f3e8ff", color: "#7c3aed" },
+      "Catalog Lead": { bg: "#dbeafe", color: "#2563eb" },
+      "Audio Curator": { bg: "#d1fae5", color: "#059669" },
+      "Infrastructure Eng": { bg: "#fef3c7", color: "#d97706" },
+    };
+
+    setAdmins((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              role: nextRole,
+              roleColor: roleColors[nextRole].color,
+              avatarBg: roleColors[nextRole].bg,
+              avatarColor: roleColors[nextRole].color,
+            }
+          : a
+      )
+    );
+    showToast(`Updated role for ${name} to ${nextRole}.`);
+  };
+
+  const filteredAdmins = admins.filter((admin) => {
+    const matchesFilter =
+      adminRoleFilter === "all" || admin.role.toLowerCase().includes(adminRoleFilter.toLowerCase());
+    const matchesSearch =
+      admin.name.toLowerCase().includes(adminSearch.toLowerCase()) ||
+      admin.email.toLowerCase().includes(adminSearch.toLowerCase()) ||
+      admin.scope.toLowerCase().includes(adminSearch.toLowerCase()) ||
+      admin.role.toLowerCase().includes(adminSearch.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -489,6 +783,15 @@ export default function AdminDashboardPage() {
 
               <button
                 type="button"
+                className={`${styles.navItem} ${activeNav === "admin-panel" ? styles.navItemActive : ""}`}
+                onClick={() => setActiveNav("admin-panel")}
+              >
+                <span className={`material-symbols-outlined ${styles.navItemIcon}`}>admin_panel_settings</span>
+                <span>Admin Panel</span>
+              </button>
+
+              <button
+                type="button"
                 className={`${styles.navItem} ${activeNav === "settings" ? styles.navItemActive : ""}`}
                 onClick={() => setActiveNav("settings")}
               >
@@ -510,7 +813,14 @@ export default function AdminDashboardPage() {
               <div className={styles.userDetails}>
                 <div className={styles.userNameRow}>
                   <span className={styles.userName}>Aswin</span>
-                  <span className={styles.userRoleBadge}>Admin</span>
+                  <span
+                    className={styles.userRoleBadge}
+                    onClick={() => setActiveNav("admin-panel")}
+                    title="Open Admin Panel"
+                    style={{ cursor: "pointer" }}
+                  >
+                    Admin
+                  </span>
                 </div>
               </div>
             </div>
@@ -531,9 +841,17 @@ export default function AdminDashboardPage() {
             <input
               type="text"
               className={styles.searchInput}
-              placeholder="Search catalog, artists, ISRCs, or storage keys..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={
+                activeNav === "admin-panel"
+                  ? "Search administrators, access scopes, or audit trail..."
+                  : "Search catalog, artists, ISRCs, or storage keys..."
+              }
+              value={activeNav === "admin-panel" ? adminSearch : searchQuery}
+              onChange={(e) =>
+                activeNav === "admin-panel"
+                  ? setAdminSearch(e.target.value)
+                  : setSearchQuery(e.target.value)
+              }
             />
             <div className={styles.searchShortcut}>
               <span>⌘</span>
@@ -544,7 +862,7 @@ export default function AdminDashboardPage() {
           <div className={styles.headerRightActions}>
             <div className={styles.headerStatusBadge}>
               <span className={styles.headerStatusDot}></span>
-              <span>Live System</span>
+              <span>{activeNav === "admin-panel" ? "Admin Security Active" : "Live System"}</span>
             </div>
           </div>
         </header>
@@ -555,8 +873,529 @@ export default function AdminDashboardPage() {
           <div className={styles.ambientGlow1} aria-hidden="true" />
           <div className={styles.ambientGlow2} aria-hidden="true" />
 
-          {/* Telemetry Header */}
-          <div className={styles.telemetryBar}>
+          {activeNav === "admin-panel" ? (
+            <div className={styles.adminPanelWrap}>
+              {/* Telemetry Bar */}
+              <div className={styles.adminTelemetryBar}>
+                <div>
+                  <h1 className={styles.pageTitle}>System Administration &amp; Access Control</h1>
+                  <p className={styles.sectionSubtitle} style={{ marginTop: "4px" }}>
+                    Manage administrative roles, zero-trust policies, and cryptographically verified audit records
+                  </p>
+                </div>
+                <div className={styles.telemetryActions}>
+                  <button
+                    type="button"
+                    className={styles.btnPublish}
+                    onClick={() => setIsInviteModalOpen(true)}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">person_add</span>
+                    <span>Invite Administrator</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={() => {
+                      const dataStr =
+                        "data:text/json;charset=utf-8," +
+                        encodeURIComponent(JSON.stringify(auditLogs, null, 2));
+                      const downloadAnchor = document.createElement("a");
+                      downloadAnchor.setAttribute("href", dataStr);
+                      downloadAnchor.setAttribute(
+                        "download",
+                        `tunedin_audit_log_${new Date().toISOString().slice(0, 10)}.json`
+                      );
+                      document.body.appendChild(downloadAnchor);
+                      downloadAnchor.click();
+                      downloadAnchor.remove();
+                      showToast("Exported JSON audit records successfully.");
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">download</span>
+                    <span>Export Audit Trail</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Admin Stat KPI Cards */}
+              <div className={styles.adminStatsGrid}>
+                {/* Stat 1: Total Admins */}
+                <div className={styles.statCard}>
+                  <div>
+                    <div className={styles.statHeader}>
+                      <span className={styles.statLabel}>Active Administrators</span>
+                      <span className={styles.statBadge}>
+                        <span className="material-symbols-outlined text-[13px]">shield</span>
+                        Zero-Trust
+                      </span>
+                    </div>
+                    <div className={styles.statValueRow}>
+                      <span className={styles.statValue}>{admins.length}</span>
+                      <span className={styles.statUnit}>/ {admins.filter((a) => a.online).length} online</span>
+                    </div>
+                    <div className={styles.statCalloutRow}>
+                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>MFA Enforcement</span>
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#059669" }}>100% Compliant</span>
+                    </div>
+                  </div>
+                  <div className={styles.statFooter}>
+                    <span>Role-Based Access Control</span>
+                    <span style={{ fontWeight: 600, color: "#1b1c18" }}>5 Assigned Roles</span>
+                  </div>
+                </div>
+
+                {/* Stat 2: Security Clearance */}
+                <div className={styles.statCard}>
+                  <div>
+                    <div className={styles.statHeader}>
+                      <span className={styles.statLabel}>Security Posture</span>
+                      <span className={styles.statBadgeAlt}>WebAuthn</span>
+                    </div>
+                    <div className={styles.statValueRow}>
+                      <span className={styles.statValue}>Tier 1</span>
+                    </div>
+                    <div className={styles.statCalloutRow}>
+                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>Passkey Verification</span>
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>Hardware Token</span>
+                    </div>
+                  </div>
+                  <div className={styles.statFooter}>
+                    <span>Security Assertion Protocol</span>
+                    <span style={{ color: "#059669", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }} />
+                      Enforced
+                    </span>
+                  </div>
+                </div>
+
+                {/* Stat 3: R2 API Credentials */}
+                <div className={styles.statCard}>
+                  <div>
+                    <div className={styles.statHeader}>
+                      <span className={styles.statLabel}>R2 Storage Tokens</span>
+                      <span className={styles.statBadgeAlt}>Cloudflare R2</span>
+                    </div>
+                    <div className={styles.statValueRow}>
+                      <span className={styles.statValue}>4</span>
+                      <span className={styles.statUnit}>active keys</span>
+                    </div>
+                    <div className={styles.statCalloutRow}>
+                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>Key Rotation Cycle</span>
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>3 Days Ago</span>
+                    </div>
+                  </div>
+                  <div className={styles.statFooter}>
+                    <span>Master FLAC Write Lock</span>
+                    <span style={{ fontWeight: 600, color: "#A03B00" }}>Dual Sign-Off</span>
+                  </div>
+                </div>
+
+                {/* Stat 4: System Edge Latency */}
+                <div className={styles.statCard}>
+                  <div>
+                    <div className={styles.statHeader}>
+                      <span className={styles.statLabel}>Edge Health &amp; Uptime</span>
+                      <span className={styles.statBadge}>
+                        <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                        99.99%
+                      </span>
+                    </div>
+                    <div className={styles.statValueRow}>
+                      <span className={styles.statValue}>22ms</span>
+                      <span className={styles.statUnit}>avg latency</span>
+                    </div>
+                    <div className={styles.statCalloutRow}>
+                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>Anomalous Access</span>
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#059669" }}>0 Detected</span>
+                    </div>
+                  </div>
+                  <div className={styles.statFooter}>
+                    <span>Global PoP Locations</span>
+                    <span style={{ fontWeight: 600, color: "#1b1c18" }}>310 Cities Live</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: Administrators Management Table */}
+              <div className={styles.adminCard}>
+                <div className={styles.adminCardHeader}>
+                  <div className={styles.sectionHeaderLeft}>
+                    <div className={styles.sectionIconBadge}>
+                      <span className="material-symbols-outlined text-[20px]">manage_accounts</span>
+                    </div>
+                    <div>
+                      <h2 className={styles.sectionTitle}>Platform Administrators</h2>
+                      <p className={styles.sectionSubtitle}>
+                        Role allocations, hardware 2FA compliance, and delegated access permissions
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className={styles.sectionHeaderRight}>
+                    <div className={styles.autoSaveBadge}>
+                      <span className={styles.autoSaveDot}></span>
+                      <span>
+                        Showing <strong style={{ color: "#1b1c18" }}>{filteredAdmins.length}</strong> of{" "}
+                        <strong style={{ color: "#1b1c18" }}>{admins.length}</strong> admins
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter Controls Bar */}
+                <div className={styles.adminFilterControls}>
+                  <div className={styles.adminRoleTabs}>
+                    {[
+                      { key: "all", label: "All Roles" },
+                      { key: "super admin", label: "Super Admin" },
+                      { key: "secops", label: "SecOps" },
+                      { key: "catalog", label: "Catalog Leads" },
+                      { key: "curator", label: "Curators" },
+                      { key: "infrastructure", label: "Infrastructure" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        className={`${styles.adminRoleTabBtn} ${adminRoleFilter === tab.key ? styles.adminRoleTabBtnActive : ""}`}
+                        onClick={() => setAdminRoleFilter(tab.key)}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className={styles.adminSearchInputWrapper}>
+                    <span className="material-symbols-outlined text-[16px]" style={{ color: "#5f5e5e" }}>search</span>
+                    <input
+                      type="text"
+                      className={styles.adminSearchInputField}
+                      placeholder="Filter by name, email, or role..."
+                      value={adminSearch}
+                      onChange={(e) => setAdminSearch(e.target.value)}
+                    />
+                    {adminSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminSearch("")}
+                        style={{ border: "none", background: "none", cursor: "pointer", color: "#5f5e5e" }}
+                      >
+                        <span className="material-symbols-outlined text-[14px]">close</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Table */}
+                <div className={styles.tableScrollWrapper}>
+                  <table className={styles.catalogTable}>
+                    <thead>
+                      <tr className={styles.tableHeaderRow}>
+                        <th className={styles.thCell} style={{ paddingLeft: "1.5rem" }}>Administrator</th>
+                        <th className={styles.thCell}>Assigned Role</th>
+                        <th className={styles.thCell}>Security (2FA)</th>
+                        <th className={styles.thCell}>Delegated Privileges Scope</th>
+                        <th className={styles.thCell}>Last Active</th>
+                        <th className={styles.thCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAdmins.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: "center", padding: "3rem", color: "#5f5e5e" }}>
+                            No administrators found matching criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredAdmins.map((admin) => (
+                          <tr key={admin.id} className={styles.tableBodyRow}>
+                            <td className={styles.tdCell} style={{ paddingLeft: "1.5rem" }}>
+                              <div className={styles.adminUserCell}>
+                                <div
+                                  className={styles.adminUserAvatar}
+                                  style={{ backgroundColor: admin.avatarBg, color: admin.avatarColor, position: "relative" }}
+                                >
+                                  {admin.name.charAt(0)}
+                                  {admin.online && (
+                                    <span
+                                      style={{
+                                        position: "absolute",
+                                        bottom: "-1px",
+                                        right: "-1px",
+                                        width: "8px",
+                                        height: "8px",
+                                        borderRadius: "50%",
+                                        backgroundColor: "#10b981",
+                                        border: "1.5px solid #ffffff",
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                                <div>
+                                  <div className={styles.adminUserName}>{admin.name}</div>
+                                  <div className={styles.adminUserEmail}>{admin.email}</div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className={styles.tdCell}>
+                              <span
+                                className={styles.roleBadgePill}
+                                style={{
+                                  backgroundColor: admin.avatarBg,
+                                  color: admin.roleColor,
+                                  border: `1px solid ${admin.roleColor}40`,
+                                }}
+                              >
+                                {admin.role}
+                              </span>
+                            </td>
+
+                            <td className={styles.tdCell}>
+                              {admin.mfaStatus === "Verified" ? (
+                                <span className={styles.mfaBadgeVerified}>
+                                  <span className="material-symbols-outlined text-[13px]">verified_user</span>
+                                  2FA Enforced
+                                </span>
+                              ) : (
+                                <span className={styles.mfaBadgePending}>
+                                  <span className="material-symbols-outlined text-[13px]">pending</span>
+                                  Pending Setup
+                                </span>
+                              )}
+                            </td>
+
+                            <td className={styles.tdCell} style={{ color: "#5f5e5e", fontSize: "13px" }}>
+                              {admin.scope}
+                            </td>
+
+                            <td className={styles.tdCell} style={{ fontSize: "12px", color: "#5f5e5e", fontFamily: "Space Grotesk, sans-serif" }}>
+                              {admin.lastActive}
+                            </td>
+
+                            <td className={styles.tdCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>
+                              <div className={styles.rowActions}>
+                                <button
+                                  type="button"
+                                  className={styles.rowActionBtn}
+                                  title="Cycle / Reassign Role"
+                                  onClick={() => handleCycleRole(admin.id, admin.role, admin.name)}
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.rowActionBtn}
+                                  title="Send 2FA Reset Email"
+                                  onClick={() => showToast(`Sent 2FA reset verification email to ${admin.email}.`)}
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">key</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`${styles.rowActionBtn} ${styles.rowActionBtnDanger}`}
+                                  title="Revoke Admin Access"
+                                  onClick={() => handleRevokeAdmin(admin.id, admin.name)}
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">person_remove</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION: Security & System Policies */}
+              <div className={styles.adminCard}>
+                <div className={styles.adminCardHeader}>
+                  <div className={styles.sectionHeaderLeft}>
+                    <div className={styles.sectionIconBadge}>
+                      <span className="material-symbols-outlined text-[20px]">security</span>
+                    </div>
+                    <div>
+                      <h2 className={styles.sectionTitle}>Security Policies &amp; System Controls</h2>
+                      <p className={styles.sectionSubtitle}>
+                        Cryptographic enforcement, Cloudflare R2 bucket protection, and edge node routing
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.policyGrid}>
+                  {/* Policy 1 */}
+                  <div className={styles.policyCard}>
+                    <div>
+                      <div className={styles.policyCardHeader}>
+                        <h3 className={styles.policyCardTitle}>Strict WebAuthn / Passkeys</h3>
+                        <label className={styles.switchLabel}>
+                          <input
+                            type="checkbox"
+                            className={styles.switchInput}
+                            checked={securityPolicies.strictMfa}
+                            onChange={() => handleTogglePolicy("strictMfa", "Strict WebAuthn")}
+                          />
+                          <span className={styles.switchSlider}></span>
+                        </label>
+                      </div>
+                      <p className={styles.policyCardDesc}>
+                        Requires biometric authentication (TouchID, FaceID, or YubiKey) for all administrative sessions.
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.strictMfa ? "#059669" : "#5f5e5e" }}>
+                      {securityPolicies.strictMfa ? "Active Enforcement" : "Optional"}
+                    </span>
+                  </div>
+
+                  {/* Policy 2 */}
+                  <div className={styles.policyCard}>
+                    <div>
+                      <div className={styles.policyCardHeader}>
+                        <h3 className={styles.policyCardTitle}>Master R2 Write Lock</h3>
+                        <label className={styles.switchLabel}>
+                          <input
+                            type="checkbox"
+                            className={styles.switchInput}
+                            checked={securityPolicies.r2WriteLock}
+                            onChange={() => handleTogglePolicy("r2WriteLock", "Master R2 Write Lock")}
+                          />
+                          <span className={styles.switchSlider}></span>
+                        </label>
+                      </div>
+                      <p className={styles.policyCardDesc}>
+                        Prevents unapproved deletion or replacement of studio lossless FLAC audio files in storage buckets.
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.r2WriteLock ? "#A03B00" : "#5f5e5e" }}>
+                      {securityPolicies.r2WriteLock ? "Dual Sign-Off Locked" : "Unlocked"}
+                    </span>
+                  </div>
+
+                  {/* Policy 3 */}
+                  <div className={styles.policyCard}>
+                    <div>
+                      <div className={styles.policyCardHeader}>
+                        <h3 className={styles.policyCardTitle}>Live Edge Invalidation</h3>
+                        <label className={styles.switchLabel}>
+                          <input
+                            type="checkbox"
+                            className={styles.switchInput}
+                            checked={securityPolicies.edgeInvalidation}
+                            onChange={() => handleTogglePolicy("edgeInvalidation", "Live Edge Invalidation")}
+                          />
+                          <span className={styles.switchSlider}></span>
+                        </label>
+                      </div>
+                      <p className={styles.policyCardDesc}>
+                        Automatically purges Cloudflare CDN edge caches worldwide within 500ms of catalog updates.
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.edgeInvalidation ? "#059669" : "#5f5e5e" }}>
+                      {securityPolicies.edgeInvalidation ? "Sub-second Sync Enabled" : "Manual Flush"}
+                    </span>
+                  </div>
+
+                  {/* Policy 4 */}
+                  <div className={styles.policyCard}>
+                    <div>
+                      <div className={styles.policyCardHeader}>
+                        <h3 className={styles.policyCardTitle}>Encrypted DB Snapshots</h3>
+                        <label className={styles.switchLabel}>
+                          <input
+                            type="checkbox"
+                            className={styles.switchInput}
+                            checked={securityPolicies.dbSnapshots}
+                            onChange={() => handleTogglePolicy("dbSnapshots", "Encrypted DB Snapshots")}
+                          />
+                          <span className={styles.switchSlider}></span>
+                        </label>
+                      </div>
+                      <p className={styles.policyCardDesc}>
+                        Captures hourly Zstandard compressed and AES-256 encrypted database state snapshots.
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.dbSnapshots ? "#059669" : "#5f5e5e" }}>
+                      {securityPolicies.dbSnapshots ? "Hourly Automatic Backup" : "Disabled"}
+                    </span>
+                  </div>
+
+                  {/* Policy 5 */}
+                  <div className={styles.policyCard}>
+                    <div>
+                      <div className={styles.policyCardHeader}>
+                        <h3 className={styles.policyCardTitle}>Public Maintenance Mode</h3>
+                        <label className={styles.switchLabel}>
+                          <input
+                            type="checkbox"
+                            className={styles.switchInput}
+                            checked={securityPolicies.maintenanceMode}
+                            onChange={() => handleTogglePolicy("maintenanceMode", "Maintenance Mode")}
+                          />
+                          <span className={styles.switchSlider}></span>
+                        </label>
+                      </div>
+                      <p className={styles.policyCardDesc}>
+                        Suspends public streaming client endpoints and returns HTTP 503 for all unauthenticated listener clients.
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.maintenanceMode ? "#A03B00" : "#059669" }}>
+                      {securityPolicies.maintenanceMode ? "System Paused (Maintenance)" : "Normal Operations"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: Live Security Audit Trail */}
+              <div className={styles.adminCard}>
+                <div className={styles.adminCardHeader}>
+                  <div className={styles.sectionHeaderLeft}>
+                    <div className={styles.sectionIconBadge}>
+                      <span className="material-symbols-outlined text-[20px]">history</span>
+                    </div>
+                    <div>
+                      <h2 className={styles.sectionTitle}>Live Security Audit Trail</h2>
+                      <p className={styles.sectionSubtitle}>
+                        Append-only cryptographic timeline of system configuration and administrative events
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.auditList}>
+                  {auditLogs.map((log) => (
+                    <div key={log.id} className={styles.auditItem}>
+                      <div className={styles.auditItemLeft}>
+                        <span className={styles.auditActorBadge}>{log.actor}</span>
+                        <div>
+                          <div className={styles.auditActionText}>{log.action}</div>
+                          <div className={styles.auditTarget}>{log.target}</div>
+                        </div>
+                      </div>
+
+                      <div className={styles.auditMetaRight}>
+                        <span style={{ fontFamily: "Space Grotesk, sans-serif" }}>{log.ip}</span>
+                        <span>•</span>
+                        <span>{log.time}</span>
+                        <span
+                          style={{
+                            width: "6px",
+                            height: "6px",
+                            borderRadius: "50%",
+                            backgroundColor: log.status === "success" ? "#10b981" : "#A03B00",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Telemetry Header */}
+              <div className={styles.telemetryBar}>
             <div>
               <h1 className={styles.pageTitle}>Audio Operations &amp; Catalog Ingestion</h1>
             </div>
@@ -1352,8 +2191,99 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           </section>
+            </>
+          )}
         </main>
       </div>
+
+      {/* Invite Administrator Modal */}
+      {isInviteModalOpen && (
+        <div className={styles.modalBackdrop} onClick={() => setIsInviteModalOpen(false)}>
+          <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span className="material-symbols-outlined" style={{ color: "#A03B00" }}>person_add</span>
+                <h3 className={styles.modalTitle}>Invite Platform Administrator</h3>
+              </div>
+              <button
+                type="button"
+                className={styles.modalCloseBtn}
+                onClick={() => setIsInviteModalOpen(false)}
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleInviteAdmin}>
+              <div className={styles.modalBody}>
+                <div className={styles.inputGroup}>
+                  <label className={styles.fieldLabel}>Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    className={styles.textInput}
+                    placeholder="e.g. Kai Sterling"
+                    value={inviteName}
+                    onChange={(e) => setInviteName(e.target.value)}
+                  />
+                </div>
+
+                <div className={styles.inputGroup}>
+                  <label className={styles.fieldLabel}>Internal Email</label>
+                  <input
+                    type="email"
+                    required
+                    className={styles.textInput}
+                    placeholder="kai.s@tunedin.internal"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className={styles.inputGroup}>
+                  <label className={styles.fieldLabel}>Administrative Role</label>
+                  <select
+                    className={styles.textInput}
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value as AdminRole)}
+                  >
+                    <option value="Super Admin">Super Admin (Full Root Clearance)</option>
+                    <option value="SecOps Engineer">SecOps Engineer (Security &amp; Audit)</option>
+                    <option value="Catalog Lead">Catalog Lead (R2 Storage &amp; Releases)</option>
+                    <option value="Audio Curator">Audio Curator (Playlists &amp; Ingestion)</option>
+                    <option value="Infrastructure Eng">Infrastructure Eng (CDN &amp; Transcoding)</option>
+                  </select>
+                </div>
+
+                <div className={styles.inputGroup}>
+                  <label className={styles.fieldLabel}>Delegated Access Scope (Optional)</label>
+                  <input
+                    type="text"
+                    className={styles.textInput}
+                    placeholder="e.g. European Edge Clusters &amp; Atmos Masters"
+                    value={inviteScope}
+                    onChange={(e) => setInviteScope(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.modalFooter}>
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={() => setIsInviteModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className={styles.btnPublish}>
+                  <span className="material-symbols-outlined text-[18px]">send</span>
+                  <span>Send Invitation</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
