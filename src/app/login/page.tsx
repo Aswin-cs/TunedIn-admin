@@ -155,7 +155,7 @@ export default function LoginPage() {
             <Link
               href="#incident-response"
               className={styles.footerLink}
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
                 e.preventDefault();
                 showToast("Incident response protocol: SOC Status Normal (Green)");
               }}
@@ -165,7 +165,7 @@ export default function LoginPage() {
             <Link
               href="#security-policy"
               className={styles.footerLink}
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
                 e.preventDefault();
                 showToast("SoundLab Security Policy: ISO/IEC 27001 Compliant");
               }}
@@ -175,7 +175,7 @@ export default function LoginPage() {
             <Link
               href="#console-docs"
               className={styles.footerLink}
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
                 e.preventDefault();
                 showToast("Opening TunedIn Admin Console v2.4 Documentation");
               }}
