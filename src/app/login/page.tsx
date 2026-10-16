@@ -1,18 +1,88 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useMemo, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
+import { useDebounce } from "use-debounce";
+import { usernameSchema } from "@/lib/validations/user";
 import styles from "./login.module.css";
 
 function LoginForm() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
 
+  // Inspect query params for auth errors or hints (derived without setState in effect)
+  const errorParam = searchParams.get("error");
+  const queryErrorMessage = useMemo(() => {
+    if (errorParam === "UsernameRequired") {
+      return "Username required: Please enter your administrator username in the form below before authenticating with Google.";
+    } else if (errorParam === "OAuthSignin" || errorParam === "OAuthCallback") {
+      return "Google OAuth handshake failed. Please verify that GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured in .env.local.";
+    } else if (errorParam) {
+      return `Authentication notice: ${errorParam}. Please verify your credentials.`;
+    }
+    return null;
+  }, [errorParam]);
+
   // Form fields from models/user.model.ts (username only; email is provided by Google OAuth, role is excluded: lines 12-16)
   const [username, setUsername] = useState("");
+  const [debouncedUsername] = useDebounce(username, 400);
+
+  // Zod validation derived directly from debounced input
+  const zodValidation = useMemo(() => {
+    const trimmed = debouncedUsername.trim();
+    if (!trimmed) {
+      return { isValid: false, error: null };
+    }
+    const result = usernameSchema.safeParse(trimmed);
+    if (!result.success) {
+      return {
+        isValid: false,
+        error: result.error.issues[0]?.message || "Invalid username format.",
+      };
+    }
+    return { isValid: true, error: null };
+  }, [debouncedUsername]);
+
+  // Server availability state updated ONLY after async fetch completes
+  const [serverAvailability, setServerAvailability] = useState<{
+    checkedUsername: string;
+    isChecking: boolean;
+    isAvailable: boolean | null;
+    message: string | null;
+  }>({
+    checkedUsername: "",
+    isChecking: false,
+    isAvailable: null,
+    message: null,
+  });
+
+  const isTyping = username.trim() !== debouncedUsername.trim() && username.trim().length > 0;
+  const isCheckingUsername =
+    isTyping ||
+    (zodValidation.isValid &&
+      (serverAvailability.isChecking ||
+        serverAvailability.checkedUsername !== debouncedUsername.trim()));
+
+  const currentUsernameError = useMemo(() => {
+    if (!debouncedUsername.trim() || isTyping) return null;
+    if (zodValidation.error) return zodValidation.error;
+    if (
+      serverAvailability.checkedUsername === debouncedUsername.trim() &&
+      serverAvailability.isAvailable === false
+    ) {
+      return serverAvailability.message || "Username is already taken.";
+    }
+    return null;
+  }, [debouncedUsername, isTyping, zodValidation.error, serverAvailability]);
+
+  const isUsernameAvailable =
+    !isCheckingUsername &&
+    zodValidation.isValid &&
+    serverAvailability.checkedUsername === debouncedUsername.trim() &&
+    serverAvailability.isAvailable === true;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
@@ -25,30 +95,76 @@ function LoginForm() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Inspect query params for auth errors or hints
+  // Real-time debounced username search - ONLY triggers async fetch when Zod passes
   useEffect(() => {
-    const errorParam = searchParams.get("error");
-
-    if (errorParam === "UsernameRequired") {
-      setErrorMessage(
-        "Username required: Please enter your administrator username in the form below before authenticating with Google."
-      );
-    } else if (errorParam === "OAuthSignin" || errorParam === "OAuthCallback") {
-      setErrorMessage(
-        "Google OAuth handshake failed. Please verify that GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured in .env.local."
-      );
-    } else if (errorParam) {
-      setErrorMessage(`Authentication notice: ${errorParam}. Please verify your credentials.`);
+    const trimmed = debouncedUsername.trim();
+    if (!trimmed || !zodValidation.isValid) {
+      return;
     }
-  }, [searchParams]);
+
+    let isCancelled = false;
+
+    const checkAvailability = async () => {
+      try {
+        const res = await fetch(
+          `/api/auth/check-username?username=${encodeURIComponent(trimmed)}`
+        );
+        const data = await res.json();
+
+        if (isCancelled) return;
+
+        setServerAvailability({
+          checkedUsername: trimmed,
+          isChecking: false,
+          isAvailable: Boolean(data.available),
+          message:
+            data.message ||
+            data.error ||
+            (data.available ? null : "Username is already taken."),
+        });
+      } catch (err) {
+        if (!isCancelled) {
+          console.error("Failed to verify username availability:", err);
+          setServerAvailability({
+            checkedUsername: trimmed,
+            isChecking: false,
+            isAvailable: false,
+            message: "Could not verify username availability.",
+          });
+        }
+      }
+    };
+
+    checkAvailability();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [debouncedUsername, zodValidation.isValid]);
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUsername(e.target.value);
+    setIsProfileSaved(false);
+  };
 
   // Handle Username Form Submission (models/user.model.ts)
   const handleSaveProfile = async (e?: React.FormEvent, triggerOAuth = false) => {
     if (e) e.preventDefault();
     setErrorMessage(null);
 
-    if (!username.trim()) {
-      setErrorMessage("Username is required by models/user.model.ts.");
+    const trimmed = username.trim();
+
+    // Enforce Zod validation on submit
+    const validationResult = usernameSchema.safeParse(trimmed);
+    if (!validationResult.success) {
+      const errorMsg =
+        validationResult.error.issues[0]?.message || "Invalid username format.";
+      setErrorMessage(errorMsg);
+      return false;
+    }
+
+    if (!isUsernameAvailable) {
+      setErrorMessage(currentUsernameError || "Please choose a verified and available username.");
       return false;
     }
 
@@ -58,7 +174,7 @@ function LoginForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: username.trim(),
+          username: trimmed,
         }),
       });
 
@@ -70,7 +186,7 @@ function LoginForm() {
 
       // Also set document.cookie as client fallback
       document.cookie = `pending_admin_username=${encodeURIComponent(
-        username.trim()
+        trimmed
       )}; path=/; max-age=900; SameSite=Lax`;
 
       setIsProfileSaved(true);
@@ -94,13 +210,23 @@ function LoginForm() {
   const handleGoogleOAuth = async () => {
     setErrorMessage(null);
 
-    // Enforce condition: must fill username first before Google OAuth
+    // Enforce condition: must fill valid, available username first before Google OAuth
     if (!isProfileSaved) {
-      if (!username.trim()) {
+      const trimmed = username.trim();
+      const validationResult = usernameSchema.safeParse(trimmed);
+      if (!validationResult.success) {
+        const errorMsg =
+          validationResult.error.issues[0]?.message || "Username is required by models/user.model.ts.";
+        setErrorMessage(`Access denied: ${errorMsg}`);
+        showToast(errorMsg);
+        return;
+      }
+
+      if (!isUsernameAvailable) {
         setErrorMessage(
-          "Access denied: You must fill in the Username from the User form first before Google OAuth is permitted."
+          currentUsernameError || "Access denied: Username is already taken or invalid."
         );
-        showToast("Please enter your Username above first.");
+        showToast("Please choose an available username first.");
         return;
       }
 
@@ -120,7 +246,11 @@ function LoginForm() {
     }
   };
 
-  const isFormComplete = username.trim().length > 0;
+  const isFormComplete =
+    username.trim().length >= 3 &&
+    isUsernameAvailable &&
+    !isCheckingUsername &&
+    !currentUsernameError;
 
   return (
     <div className={styles.loginPage}>
@@ -202,12 +332,12 @@ function LoginForm() {
             /* Authentication & User Model Pre-registration Body */
             <div className={styles.authBody}>
               {/* Error Callout Banner */}
-              {errorMessage && (
+              {(errorMessage || queryErrorMessage) && (
                 <div className={styles.errorBanner} role="alert">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
                   </svg>
-                  <span>{errorMessage}</span>
+                  <span>{errorMessage || queryErrorMessage}</span>
                 </div>
               )}
 
@@ -226,22 +356,107 @@ function LoginForm() {
                   <label htmlFor="user-username" className={styles.fieldLabel}>
                     Username <span className={styles.requiredAsterisk}>*</span>
                   </label>
-                  <input
-                    id="user-username"
-                    type="text"
-                    required
-                    placeholder="e.g. aswin_admin"
-                    value={username}
-                    onChange={(e) => {
-                      setUsername(e.target.value);
-                      setIsProfileSaved(false);
-                    }}
-                    className={styles.inputControl}
-                    disabled={isSubmitting || isOAuthLoading}
-                  />
-                  <p className={styles.fieldHint}>
-                    Administrator username per models/user.model.ts. Email will be securely verified via Google OAuth.
-                  </p>
+                  <div className={styles.inputControlWrapper}>
+                    <input
+                      id="user-username"
+                      type="text"
+                      required
+                      placeholder="e.g. aswin_admin"
+                      value={username}
+                      onChange={handleUsernameChange}
+                      className={`${styles.inputControl} ${
+                        currentUsernameError
+                          ? styles.inputControlInvalid
+                          : isUsernameAvailable
+                          ? styles.inputControlValid
+                          : ""
+                      }`}
+                      disabled={isSubmitting || isOAuthLoading}
+                      autoComplete="username"
+                    />
+                    <div className={styles.inputStatusIcon}>
+                      {isCheckingUsername ? (
+                        <svg
+                          className={styles.spinnerSvg}
+                          style={{ width: 16, height: 16, color: "#a63500" }}
+                          viewBox="0 0 24 24"
+                          fill="none"
+                        >
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            opacity="0.25"
+                          />
+                          <path
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          />
+                        </svg>
+                      ) : isUsernameAvailable ? (
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="#00875a"
+                        >
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                        </svg>
+                      ) : currentUsernameError ? (
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="#d04400"
+                        >
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                        </svg>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* Real-time Debounced Validation and Availability Feedback */}
+                  {isCheckingUsername ? (
+                    <div
+                      className={`${styles.feedbackRow} ${styles.feedbackChecking}`}
+                    >
+                      <span>Checking availability...</span>
+                    </div>
+                  ) : currentUsernameError ? (
+                    <div
+                      className={`${styles.feedbackRow} ${styles.feedbackError}`}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                      </svg>
+                      <span>{currentUsernameError}</span>
+                    </div>
+                  ) : isUsernameAvailable ? (
+                    <div
+                      className={`${styles.feedbackRow} ${styles.feedbackSuccess}`}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                      </svg>
+                      <span>Username is available!</span>
+                    </div>
+                  ) : (
+                    <p className={styles.fieldHint}>
+                      Administrator username per models/user.model.ts (3-20 characters, alphanumeric & underscores). Verified in real-time.
+                    </p>
+                  )}
                 </div>
 
                 {/* Role Note (lines 12-16 explicitly excluded from inputs) */}
