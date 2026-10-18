@@ -1,4 +1,4 @@
-# 🎛️ TunedIn Admin Console
+# TunedIn Admin Console
 
 > **Audio Operations, Catalog Ingestion & System Administration Studio**  
 > Part of the **TunedIn** music streaming ecosystem.
@@ -12,7 +12,7 @@
 
 ---
 
-## 📖 Overview
+## Overview
 
 The **TunedIn Admin Console** is a high-performance, editorial-grade administration dashboard and audio ingestion suite designed for managing the **TunedIn** streaming platform. Rejecting generic dark-mode tropes, TunedIn implements a warm, daylight-infused studio aesthetic ("TunedIn Light") reminiscent of boutique vinyl listening rooms and precision master hardware.
 
@@ -20,28 +20,28 @@ Built with **Next.js 16 (App Router)**, **React 19**, **TypeScript**, **Mongoose
 
 ---
 
-## ✨ Features
+## Features
 
-### 1. 🎵 Release & Asset Ingestion Studio
+### 1. Release & Asset Ingestion Studio
 - **Master Artwork Canvas**: High-resolution 1:1 artwork dropzone with instant preview and interactive URL replacement.
 - **Chroma Palette Extraction**: Automatic extraction and one-click clipboard copying of Dominant (`#F26419`), Vibrant (`#E88C2B`), and Muted (`#8D7166`) accent hex swatches.
 - **Master Metadata Staging**: Track title, primary artists, album release, ISRC code, and dynamic genre/spectral vibe tags.
 - **Cloudflare R2 Staging Key**: Previews assigned lossless FLAC object keys (e.g., `r2://masters/2025/...`).
 
-### 2. 🎚️ Lossless Audio Synthesis & Waveform Transport
+### 2. Lossless Audio Synthesis & Waveform Transport
 - **Web Audio API Synthesizer**: Built-in harmonic chord synthesizer (F minor 9: F3, Ab3, C4, Eb4, G4) providing instantaneous acoustic preview without requiring external media assets.
 - **55-Bar Frequency Waveform**: Interactive responsive canvas reflecting playback progress with click-to-seek scrub controls.
 - **Precision Transport Controls**: Play/pause, ±10s seeking, looping toggle, and speed adjustment (0.8x, 1.0x, 1.25x, 1.5x).
 - **Master Volume & Muting**: Smooth-ramping audio gain control with real-time percentage feedback.
 
-### 3. 📚 Music Catalog Data Grid
+### 3. Music Catalog Data Grid
 - **Search & Categorization**: Real-time filtering across titles, artists, ISRCs, and R2 storage keys.
 - **Category Tabs**: Filter between *All Tracks*, *Pending Transcode*, and *Drafts*.
 - **Row Actions**: One-click stream telemetry viewing, metadata editing in the ingestion studio, ISRC/key copying, and master archiving.
 - **Batch Operations**: Bulk selection checkboxes with catalog export (JSON/CSV).
 - **Tabular Data Navigation**: Pagination controls with record range indicators.
 
-### 4. 🛡️ System Administration & Access Control (RBAC)
+### 4. System Administration & Access Control (RBAC)
 - **Zero-Trust Role Hierarchy**: Support for 5 specialized console roles:
   - `Super Admin` (Full root & infrastructure clearance)
   - `SecOps Engineer` (Security policies & WebAuthn audit)
@@ -58,7 +58,7 @@ Built with **Next.js 16 (App Router)**, **React 19**, **TypeScript**, **Mongoose
   - Public Maintenance Mode toggle (HTTP 503 fallback for listener clients)
 - **Live Security Audit Trail**: Append-only cryptographic log recording actor, IP, timestamp, action, and target, with one-click JSON export.
 
-### 5. 🔐 Authentication & Onboarding
+### 5. Authentication & Onboarding
 - **Google OAuth via NextAuth.js**: Secure sign-in integrated with Google Cloud Console credentials.
 - **Two-Step Onboarding & Username Reservation**:
   - Debounced username availability validation (`/api/auth/check-username`).
@@ -68,7 +68,7 @@ Built with **Next.js 16 (App Router)**, **React 19**, **TypeScript**, **Mongoose
 
 ---
 
-## 🎨 Design Philosophy & Aesthetics
+## Design Philosophy & Aesthetics
 
 The UI adheres to the design specification documented in [`design.md`](file:///e:/New%20folder/java/NEW%20PROJECT/spotify%20clone/admin/design.md):
 - **Base Canvas**: Warm Linen (`#FBF9F3` / `#F8F6F0`) creating visual depth through tactile milk-white cards rather than harsh dark-mode panels.
@@ -78,7 +78,7 @@ The UI adheres to the design specification documented in [`design.md`](file:///e
 
 ---
 
-## 🏗️ Architecture & Project Structure
+## Architecture & Project Structure
 
 ```text
 admin/
@@ -120,7 +120,7 @@ admin/
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Category | Technology |
 |---|---|
@@ -136,7 +136,7 @@ admin/
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -207,7 +207,7 @@ http://localhost:3001
 
 ---
 
-## 📡 API Reference
+## API Reference
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -218,7 +218,7 @@ http://localhost:3001
 
 ---
 
-## 🗄️ Database Schemas
+## Database Schemas
 
 ### `User` (`models/user.model.ts`)
 ```typescript
@@ -269,7 +269,7 @@ http://localhost:3001
 
 ---
 
-## 📜 Available Scripts
+## Available Scripts
 
 | Command | Action |
 |---|---|
@@ -280,6 +280,6 @@ http://localhost:3001
 
 ---
 
-## 📄 License
+## License
 
 This project is proprietary and confidential. Developed as part of the **TunedIn / Spotify Clone** ecosystem.
