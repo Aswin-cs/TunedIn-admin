@@ -12,7 +12,7 @@ interface CatalogTrack {
   artist: string;
   album: string;
   duration: string;
-  r2Key: string;
+  storageKey: string;
   streams: string;
   status: "live" | "processing" | "draft";
   statusText: string;
@@ -87,7 +87,7 @@ const INITIAL_ADMINS: AdminUser[] = [
     email: "marcus.t@tunedin.internal",
     role: "Catalog Lead",
     roleColor: "#2563eb",
-    scope: "Cloudflare R2 & Release Metadata",
+    scope: "Backblaze B2 & Release Metadata",
     mfaStatus: "Verified",
     lastActive: "1 hour ago",
     avatarBg: "#dbeafe",
@@ -137,8 +137,8 @@ const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     id: "aud-2",
     actor: "Elena Vance",
     role: "SecOps",
-    action: "Rotated Cloudflare R2 bucket API credentials",
-    target: "r2://masters/2025/*",
+    action: "Rotated Backblaze B2 bucket Application Key",
+    target: "b2://tunedin-audio/masters/2025/*",
     ip: "10.0.4.11 (Stockholm)",
     time: "42 mins ago",
     status: "success",
@@ -172,7 +172,7 @@ const INITIAL_TRACKS: CatalogTrack[] = [
     artist: "Aswin & Kiasmos",
     album: "Echoes in Obsidian",
     duration: "04:12",
-    r2Key: "r2://masters/2025/tr-9812.flac",
+    storageKey: "b2://tunedin-audio/2025/tr-9812.flac",
     streams: "412,890",
     status: "live",
     statusText: "Live",
@@ -188,7 +188,7 @@ const INITIAL_TRACKS: CatalogTrack[] = [
     artist: "Max Richter & Olafur",
     album: "Spatial Horizons OST",
     duration: "06:48",
-    r2Key: "r2://masters/2025/tr-9804.adm",
+    storageKey: "b2://tunedin-audio/2025/tr-9804.mp3",
     streams: "284,110",
     status: "live",
     statusText: "Live",
@@ -204,7 +204,7 @@ const INITIAL_TRACKS: CatalogTrack[] = [
     artist: "Nils Frahm Ensemble",
     album: "The Solitary Architect",
     duration: "05:22",
-    r2Key: "r2://masters/2025/tr-9799.flac",
+    storageKey: "b2://tunedin-audio/2025/tr-9799.flac",
     streams: "19,420",
     status: "processing",
     statusText: "Processing 84%",
@@ -219,7 +219,7 @@ const INITIAL_TRACKS: CatalogTrack[] = [
     artist: "Jon Hopkins & Tycho",
     album: "Singularity Resonances",
     duration: "07:15",
-    r2Key: "r2://masters/2025/tr-9712.flac",
+    storageKey: "b2://tunedin-audio/2025/tr-9712.flac",
     streams: "670,450",
     status: "live",
     statusText: "Live",
@@ -234,7 +234,7 @@ const INITIAL_TRACKS: CatalogTrack[] = [
     artist: "GUNSHIP & Kavinsky",
     album: "Neon Overdrive",
     duration: "03:49",
-    r2Key: "r2://masters/2025/tr-9642.flac",
+    storageKey: "b2://tunedin-audio/2025/tr-9642.flac",
     streams: "1,124,000",
     status: "live",
     statusText: "Live",
@@ -297,11 +297,60 @@ export default function AdminDashboardPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
   const [securityPolicies, setSecurityPolicies] = useState({
     strictMfa: true,
-    r2WriteLock: true,
+    b2WriteLock: true,
     edgeInvalidation: true,
     dbSnapshots: true,
     maintenanceMode: false,
   });
+
+  // Live Storage Metrics State (Exact details from config/backblaze and config/cloudinary)
+  const [liveStorage, setLiveStorage] = useState<{
+    backblaze: {
+      configured: boolean;
+      bucketName: string;
+      bucketId: string;
+      region: string;
+      fileCount: number;
+      totalBytes: number;
+      formattedSize: string;
+      freeTierLimitBytes: number;
+      freeTierFormatted: string;
+      percentUsed: number;
+      status: string;
+    };
+    cloudinary: {
+      configured: boolean;
+      plan: string;
+      storageBytes: number;
+      storageFormatted: string;
+      bandwidthBytes: number;
+      bandwidthFormatted: string;
+      objectsCount: number;
+      transformations: number;
+      creditsUsed: number;
+      creditsLimit: number;
+      creditsUsedPercent: number;
+      status: string;
+    };
+  } | null>(null);
+
+  const fetchLiveStorage = async () => {
+    try {
+      const res = await fetch("/api/storage/metrics");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setLiveStorage(data);
+        }
+      }
+    } catch {
+      // Handled gracefully
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveStorage();
+  }, []);
 
   // Admin Invite Modal State
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -446,12 +495,11 @@ export default function AdminDashboardPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-      showToast("Telemetry metrics refreshed successfully.");
-    }, 700);
+    await fetchLiveStorage();
+    setIsRefreshing(false);
+    showToast("Live storage metrics updated from Backblaze B2 & Cloudinary.");
   };
 
   // Audio Playback & Music Player State
@@ -656,7 +704,7 @@ export default function AdminDashboardPage() {
       artist: primaryArtist,
       album: albumCollection,
       duration: "04:38",
-      r2Key: `r2://masters/2025/tr-${Math.floor(1000 + Math.random() * 9000)}.flac`,
+      storageKey: `b2://tunedin-audio/2025/tr-${Math.floor(1000 + Math.random() * 9000)}.flac`,
       streams: "0",
       status: "live",
       statusText: "Live",
@@ -703,7 +751,7 @@ export default function AdminDashboardPage() {
       track.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       track.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
       track.isrc.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      track.r2Key.toLowerCase().includes(searchQuery.toLowerCase());
+      track.storageKey.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTab && matchesQuery;
   });
 
@@ -1047,12 +1095,12 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
 
-                {/* Stat 3: R2 API Credentials */}
+                {/* Stat 3: B2 Storage Tokens */}
                 <div className={styles.statCard}>
                   <div>
                     <div className={styles.statHeader}>
-                      <span className={styles.statLabel}>R2 Storage Tokens</span>
-                      <span className={styles.statBadgeAlt}>Cloudflare R2</span>
+                      <span className={styles.statLabel}>B2 Storage Tokens</span>
+                      <span className={styles.statBadgeAlt}>Backblaze B2</span>
                     </div>
                     <div className={styles.statValueRow}>
                       <span className={styles.statValue}>4</span>
@@ -1297,7 +1345,7 @@ export default function AdminDashboardPage() {
                     <div>
                       <h2 className={styles.sectionTitle}>Security Policies &amp; System Controls</h2>
                       <p className={styles.sectionSubtitle}>
-                        Cryptographic enforcement, Cloudflare R2 bucket protection, and edge node routing
+                        Cryptographic enforcement, Backblaze B2 bucket protection, and multi-region CDN caching
                       </p>
                     </div>
                   </div>
@@ -1332,23 +1380,23 @@ export default function AdminDashboardPage() {
                   <div className={styles.policyCard}>
                     <div>
                       <div className={styles.policyCardHeader}>
-                        <h3 className={styles.policyCardTitle}>Master R2 Write Lock</h3>
+                        <h3 className={styles.policyCardTitle}>Master B2 Write Lock</h3>
                         <label className={styles.switchLabel}>
                           <input
                             type="checkbox"
                             className={styles.switchInput}
-                            checked={securityPolicies.r2WriteLock}
-                            onChange={() => handleTogglePolicy("r2WriteLock", "Master R2 Write Lock")}
+                            checked={securityPolicies.b2WriteLock}
+                            onChange={() => handleTogglePolicy("b2WriteLock", "Master B2 Write Lock")}
                           />
                           <span className={styles.switchSlider}></span>
                         </label>
                       </div>
                       <p className={styles.policyCardDesc}>
-                        Prevents unapproved deletion or replacement of studio lossless FLAC audio files in storage buckets.
+                        Prevents unapproved deletion or replacement of studio lossless FLAC audio files in Backblaze B2 buckets.
                       </p>
                     </div>
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.r2WriteLock ? "#A03B00" : "#5f5e5e" }}>
-                      {securityPolicies.r2WriteLock ? "Dual Sign-Off Locked" : "Unlocked"}
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.b2WriteLock ? "#A03B00" : "#5f5e5e" }}>
+                      {securityPolicies.b2WriteLock ? "Dual Sign-Off Locked" : "Unlocked"}
                     </span>
                   </div>
 
@@ -1368,7 +1416,7 @@ export default function AdminDashboardPage() {
                         </label>
                       </div>
                       <p className={styles.policyCardDesc}>
-                        Automatically purges Cloudflare CDN edge caches worldwide within 500ms of catalog updates.
+                        Automatically purges CDN edge caches worldwide within 500ms of catalog and audio updates.
                       </p>
                     </div>
                     <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.edgeInvalidation ? "#059669" : "#5f5e5e" }}>
@@ -1498,51 +1546,80 @@ export default function AdminDashboardPage() {
 
           {/* SECTION A: Storage & CDN Stat Cards */}
           <section className={styles.statsGrid}>
-            {/* Card 1: R2 Storage */}
+            {/* Card 1: Backblaze B2 Audio Storage */}
             <div className={styles.statCard}>
               <div>
                 <div className={styles.statHeader}>
                   <span className={styles.statLabel}>Total Audio Uploads</span>
-                  <span className={styles.statBadgeAlt}>Cloudflare R2</span>
+                  <span className={styles.statBadgeAlt}>
+                    Backblaze B2 ({liveStorage?.backblaze.bucketName || "tunedIn"})
+                  </span>
                 </div>
                 <div className={styles.statValueRow}>
-                  <span className={styles.statValue}>48.2 GB</span>
-                  <span className={styles.statUnit}>/ 100 GB</span>
+                  <span className={styles.statValue}>
+                    {liveStorage ? liveStorage.backblaze.formattedSize : "0.00 MB"}
+                  </span>
+                  <span className={styles.statUnit}>
+                    / {liveStorage ? liveStorage.backblaze.freeTierFormatted : "10 GB"}
+                  </span>
                 </div>
                 <div className={styles.progressBarTrack}>
-                  <div className={styles.progressBarFill} style={{ width: "48.2%" }} />
+                  <div
+                    className={styles.progressBarFill}
+                    style={{
+                      width: `${liveStorage ? Math.max(0.5, Math.min(100, liveStorage.backblaze.percentUsed)) : 0.5}%`,
+                    }}
+                  />
                 </div>
               </div>
               <div className={styles.statFooter}>
-                <span>48.2% of pool allocated</span>
+                <span>
+                  {liveStorage
+                    ? `${liveStorage.backblaze.fileCount} audio files (${liveStorage.backblaze.percentUsed}% pool)`
+                    : "0 audio files stored"}
+                </span>
                 <span style={{ color: "#A03B00", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#A03B00" }}></span>
-                  Edge 22ms
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }}></span>
+                  {liveStorage?.backblaze.region ? `${liveStorage.backblaze.region.toUpperCase()} • Live` : "B2 S3 Live"}
                 </span>
               </div>
             </div>
 
-            {/* Card 2: Poster CDN */}
+            {/* Card 2: Poster CDN & Image Storage */}
             <div className={styles.statCard}>
               <div>
                 <div className={styles.statHeader}>
                   <span className={styles.statLabel}>Poster CDN Bandwidth</span>
                   <span className={styles.statBadge}>
-                    <span className="material-symbols-outlined text-[13px]">arrow_upward</span>
-                    +5.2%
+                    <span className="material-symbols-outlined text-[13px]">cloud_done</span>
+                    Cloudinary ({liveStorage?.cloudinary.plan || "Free"})
                   </span>
                 </div>
                 <div className={styles.statValueRow}>
-                  <span className={styles.statValue}>184.6 GB</span>
+                  <span className={styles.statValue}>
+                    {liveStorage ? liveStorage.cloudinary.bandwidthFormatted : "177.53 MB"}
+                  </span>
                 </div>
                 <div className={styles.statCalloutRow}>
-                  <span style={{ color: "#5f5e5e", fontWeight: 500 }}>Cache Hit Ratio</span>
-                  <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>99.98%</span>
+                  <span style={{ color: "#5f5e5e", fontWeight: 500 }}>
+                    Stored Artwork: {liveStorage ? liveStorage.cloudinary.storageFormatted : "12.64 MB"}
+                  </span>
+                  <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>
+                    {liveStorage ? `${liveStorage.cloudinary.objectsCount} assets` : "42 assets"}
+                  </span>
                 </div>
               </div>
               <div className={styles.statFooter}>
-                <span>Cloudinary Media Engine</span>
-                <span style={{ fontWeight: 600, color: "#1b1c18" }}>Brotli WebP</span>
+                <span>
+                  {liveStorage
+                    ? `${liveStorage.cloudinary.transformations} Transformations Executed`
+                    : "Cloudinary Media Engine"}
+                </span>
+                <span style={{ fontWeight: 600, color: "#1b1c18" }}>
+                  {liveStorage
+                    ? `${liveStorage.cloudinary.creditsUsed} / ${liveStorage.cloudinary.creditsLimit} Credits (${liveStorage.cloudinary.creditsUsedPercent}%)`
+                    : "Brotli WebP"}
+                </span>
               </div>
             </div>
           </section>
@@ -1558,7 +1635,7 @@ export default function AdminDashboardPage() {
                 <div>
                   <h2 className={styles.sectionTitle}>Release &amp; Asset Ingestion Studio</h2>
                   <p className={styles.sectionSubtitle}>
-                    Package masters, spectral art tags, and Cloudflare R2 pipeline metadata
+                    Package masters, spectral art tags, and Backblaze B2 pipeline metadata
                   </p>
                 </div>
               </div>
@@ -1789,7 +1866,7 @@ export default function AdminDashboardPage() {
                           <span className={styles.losslessBadge}>48kHz / 24-bit Lossless</span>
                         </div>
                         <span style={{ fontSize: "11px", color: "#5f5e5e", marginTop: "2px" }}>
-                          Master Audio Engine • Direct R2 Stream
+                          Master Audio Engine • Direct Backblaze B2 Stream
                         </span>
                       </div>
                     </div>
@@ -2063,7 +2140,7 @@ export default function AdminDashboardPage() {
                     <th className={styles.thCell}>Track &amp; Artwork</th>
                     <th className={styles.thCell}>Album Release</th>
                     <th className={styles.thCell} style={{ textAlign: "right" }}>Duration</th>
-                    <th className={styles.thCell}>R2 Storage Key</th>
+                    <th className={styles.thCell}>Backblaze B2 Key</th>
                     <th className={styles.thCell} style={{ textAlign: "right" }}>Streams</th>
                     <th className={styles.thCell}>Status</th>
                     <th className={styles.thCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>Actions</th>
@@ -2148,11 +2225,11 @@ export default function AdminDashboardPage() {
                         <td className={styles.tdCell}>
                           <span
                             className={styles.storagePill}
-                            onClick={() => copyToClipboard(track.r2Key, "R2 Storage Key")}
-                            title="Click to copy R2 key"
+                            onClick={() => copyToClipboard(track.storageKey, "Backblaze B2 Key")}
+                            title="Click to copy Backblaze B2 key"
                             style={{ cursor: "pointer" }}
                           >
-                            {track.r2Key}
+                            {track.storageKey}
                           </span>
                         </td>
                         <td className={styles.tdCell} style={{ textAlign: "right", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>
@@ -2328,7 +2405,7 @@ export default function AdminDashboardPage() {
                   >
                     <option value="Super Admin">Super Admin (Full Root Clearance)</option>
                     <option value="SecOps Engineer">SecOps Engineer (Security &amp; Audit)</option>
-                    <option value="Catalog Lead">Catalog Lead (R2 Storage &amp; Releases)</option>
+                    <option value="Catalog Lead">Catalog Lead (Backblaze B2 &amp; Releases)</option>
                     <option value="Audio Curator">Audio Curator (Playlists &amp; Ingestion)</option>
                     <option value="Infrastructure Eng">Infrastructure Eng (CDN &amp; Transcoding)</option>
                   </select>

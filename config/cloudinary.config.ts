@@ -171,4 +171,98 @@ export function getOptimizedPosterUrl(
   });
 }
 
+export interface CloudinaryUsageStats {
+  configured: boolean;
+  plan: string;
+  storageBytes: number;
+  storageFormatted: string;
+  bandwidthBytes: number;
+  bandwidthFormatted: string;
+  objectsCount: number;
+  transformations: number;
+  creditsUsed: number;
+  creditsLimit: number;
+  creditsUsedPercent: number;
+  status: "live" | "not_configured" | "error";
+  error?: string;
+}
+
+export function formatCloudinaryBytes(bytes: number, decimals: number = 2): string {
+  if (!bytes || bytes === 0) return "0.00 MB";
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  if (i < 2) {
+    return `${(bytes / (k * k)).toFixed(dm)} MB`;
+  }
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
+/**
+ * Fetch exact live storage and bandwidth details from Cloudinary Admin API
+ */
+export async function getCloudinaryStorageUsage(): Promise<CloudinaryUsageStats> {
+  if (!isCloudinaryConfigured()) {
+    return {
+      configured: false,
+      plan: "Free",
+      storageBytes: 0,
+      storageFormatted: "0.00 MB",
+      bandwidthBytes: 0,
+      bandwidthFormatted: "0.00 MB",
+      objectsCount: 0,
+      transformations: 0,
+      creditsUsed: 0,
+      creditsLimit: 25,
+      creditsUsedPercent: 0,
+      status: "not_configured",
+    };
+  }
+
+  try {
+    const usage = await cloudinary.api.usage();
+    const storageBytes = usage.storage?.usage || 0;
+    const bandwidthBytes = usage.bandwidth?.usage || 0;
+    const objectsCount = usage.objects?.usage || usage.resources || 0;
+    const transformations = usage.transformations?.usage || 0;
+    const creditsUsed = usage.credits?.usage || 0;
+    const creditsLimit = usage.credits?.limit || 25;
+    const creditsUsedPercent = usage.credits?.used_percent || 0;
+
+    return {
+      configured: true,
+      plan: usage.plan || "Free",
+      storageBytes,
+      storageFormatted: formatCloudinaryBytes(storageBytes),
+      bandwidthBytes,
+      bandwidthFormatted: formatCloudinaryBytes(bandwidthBytes),
+      objectsCount,
+      transformations,
+      creditsUsed: parseFloat(creditsUsed.toFixed(2)),
+      creditsLimit,
+      creditsUsedPercent: parseFloat(creditsUsedPercent.toFixed(1)),
+      status: "live",
+    };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    return {
+      configured: true,
+      plan: "Free",
+      storageBytes: 0,
+      storageFormatted: "0.00 MB",
+      bandwidthBytes: 0,
+      bandwidthFormatted: "0.00 MB",
+      objectsCount: 0,
+      transformations: 0,
+      creditsUsed: 0,
+      creditsLimit: 25,
+      creditsUsedPercent: 0,
+      status: "error",
+      error: msg,
+    };
+  }
+}
+
 export default cloudinary;
+
