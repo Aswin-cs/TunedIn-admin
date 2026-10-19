@@ -2427,3 +2427,226 @@
   gap: 10px;
   background-color: rgba(245, 243, 237, 0.3);
 }
+
+/* ==========================================================================
+   Authentication Gate / Not Logged In View
+   ========================================================================== */
+
+.authGateContainer {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fbf9f3;
+  padding: 2rem 1.5rem;
+  position: relative;
+  overflow: hidden;
+  font-family: var(--font-body, 'Hanken Grotesk', sans-serif);
+}
+
+.authGateAmbient1 {
+  position: absolute;
+  top: -150px;
+  left: 20%;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(160, 59, 0, 0.08) 0%, rgba(251, 249, 243, 0) 70%);
+  pointer-events: none;
+}
+
+.authGateAmbient2 {
+  position: absolute;
+  bottom: -150px;
+  right: 15%;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 76, 0, 0.06) 0%, rgba(251, 249, 243, 0) 70%);
+  pointer-events: none;
+}
+
+.authGateCard {
+  position: relative;
+  z-index: 10;
+  max-width: 540px;
+  width: 100%;
+  background-color: #ffffff;
+  border: 1px solid #E6E2DA;
+  border-radius: 24px;
+  padding: 3rem 2.5rem;
+  box-shadow: 0 20px 48px -8px rgba(27, 28, 24, 0.08), 0 4px 12px rgba(27, 28, 24, 0.03);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.authGateIconWrap {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background-color: #FFF2EB;
+  border: 1px solid rgba(160, 59, 0, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 8px 24px -4px rgba(160, 59, 0, 0.15);
+}
+
+.authGateBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background-color: rgba(160, 59, 0, 0.08);
+  border: 1px solid rgba(160, 59, 0, 0.15);
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #A03B00;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.authGateBadgeDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #A03B00;
+  animation: pulseDot 2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+}
+
+.authGateTitle {
+  font-family: var(--font-display, 'Space Grotesk', sans-serif);
+  font-size: 28px;
+  font-weight: 700;
+  color: #1b1c18;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.85rem 0;
+  line-height: 1.25;
+}
+
+.authGateDesc {
+  font-size: 15px;
+  color: #594138;
+  line-height: 1.6;
+  margin: 0 0 2rem 0;
+  max-width: 440px;
+}
+
+.authGateDesc strong {
+  color: #1b1c18;
+  font-weight: 600;
+}
+
+.authGateActions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.authGatePrimaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background-color: #A03B00;
+  color: #ffffff;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(160, 59, 0, 0.25);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.authGatePrimaryBtn:hover {
+  background-color: #7d2d00;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(160, 59, 0, 0.35);
+}
+
+.authGatePrimaryBtn:active {
+  transform: translateY(0);
+}
+
+.authGateSecondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: #f5f3ed;
+  color: #1b1c18;
+  padding: 14px 22px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid #E6E2DA;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.authGateSecondaryBtn:hover {
+  background-color: #eae8e2;
+  border-color: #dcdad4;
+}
+
+.authGateFooter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #8d7166;
+  border-top: 1px solid #f0eee8;
+  padding-top: 1.25rem;
+  width: 100%;
+}
+
+/* Loading Spinner state */
+.authGateSpinner {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 3px solid rgba(160, 59, 0, 0.15);
+  border-top-color: #A03B00;
+  animation: gateSpin 0.85s linear infinite;
+  margin-bottom: 1.25rem;
+}
+
+@keyframes gateSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.authGateLoadingText {
+  font-size: 15px;
+  font-weight: 500;
+  color: #594138;
+  margin: 0;
+}
+

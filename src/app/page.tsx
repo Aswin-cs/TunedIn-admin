@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSession, signOut } from "next-auth/react";
 import styles from "./page.module.css";
 
 interface CatalogTrack {
@@ -252,6 +253,9 @@ const FREQUENCY_HEIGHTS = [
 ];
 
 export default function AdminDashboardPage() {
+  // Authentication Guard State
+  const { data: session, status } = useSession();
+
   // Navigation State
   const [activeNav, setActiveNav] = useState("overview-analytics");
 
@@ -703,6 +707,76 @@ export default function AdminDashboardPage() {
     return matchesTab && matchesQuery;
   });
 
+  // Authentication Gate Check
+  if (status === "loading") {
+    return (
+      <div className={styles.authGateContainer}>
+        <div className={styles.authGateCard}>
+          <div className={styles.authGateSpinner} />
+          <p className={styles.authGateLoadingText}>Verifying administrator session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not Logged In View
+  if (status === "unauthenticated" || !session) {
+    return (
+      <div className={styles.authGateContainer}>
+        <div className={styles.authGateAmbient1} aria-hidden="true" />
+        <div className={styles.authGateAmbient2} aria-hidden="true" />
+
+        <div className={styles.authGateCard}>
+          <div className={styles.authGateIconWrap}>
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: "38px", color: "var(--primary, #A03B00)" }}
+            >
+              lock
+            </span>
+          </div>
+
+          <div className={styles.authGateBadge}>
+            <span className={styles.authGateBadgeDot} />
+            <span>Access Restricted • Session Inactive</span>
+          </div>
+
+          <h1 className={styles.authGateTitle}>You Are Not Logged In</h1>
+
+          <p className={styles.authGateDesc}>
+            The <strong>TunedIn Admin Console</strong> is strictly restricted to authorized administrators.
+            Please sign in with your verified credentials to access audio ingestion,
+            catalog management, and master storage configurations.
+          </p>
+
+          <div className={styles.authGateActions}>
+            <Link href="/login" className={styles.authGatePrimaryBtn}>
+              <span className="material-symbols-outlined" style={{ fontSize: "20px" }}>
+                login
+              </span>
+              <span>Go to Admin Login</span>
+            </Link>
+          </div>
+
+          <div className={styles.authGateFooter}>
+            <span className="material-symbols-outlined" style={{ fontSize: "16px", color: "#8d7166" }}>
+              shield
+            </span>
+            <span>Zero-Trust Security • Protected by NextAuth &amp; Google OAuth</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const authenticatedUsername =
+    (session.user as { username?: string })?.username ||
+    session.user?.name ||
+    "Admin";
+  const authenticatedRole =
+    (session.user as { role?: string })?.role || "Admin";
+  const avatarLetter = authenticatedUsername[0]?.toUpperCase() || "A";
+
   return (
     <div className={styles.dashboardContainer}>
       {/* Toast Notification */}
@@ -807,27 +881,32 @@ export default function AdminDashboardPage() {
           <div className={styles.userCard}>
             <div className={styles.userInfo}>
               <div className={styles.userAvatarWrapper}>
-                <div className={styles.userAvatar}>A</div>
+                <div className={styles.userAvatar}>{avatarLetter}</div>
                 <span className={styles.statusIndicator} title="Online" />
               </div>
               <div className={styles.userDetails}>
                 <div className={styles.userNameRow}>
-                  <span className={styles.userName}>Aswin</span>
+                  <span className={styles.userName}>{authenticatedUsername}</span>
                   <span
                     className={styles.userRoleBadge}
                     onClick={() => setActiveNav("admin-panel")}
                     title="Open Admin Panel"
                     style={{ cursor: "pointer" }}
                   >
-                    Admin
+                    {authenticatedRole}
                   </span>
                 </div>
               </div>
             </div>
 
-            <Link href="/login" className={styles.logoutBtn} title="Sign Out">
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className={styles.logoutBtn}
+              title="Sign Out"
+            >
               <span className="material-symbols-outlined text-[18px]">logout</span>
-            </Link>
+            </button>
           </div>
         </div>
       </aside>
