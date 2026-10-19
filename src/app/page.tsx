@@ -189,6 +189,17 @@ export default function AdminDashboardPage() {
   const [artworkUrl, setArtworkUrl] = useState(
     "https://lh3.googleusercontent.com/aida-public/AB6AXuAH-uDDC18zCWmCpI70txCzYCznXJeLFYZ_lkXdiza7gBHt0QcrH5y0r09iDGF_-ZIWhb4M6SUdPMJMG1OugVYEsQKdxvzpiWkbUr44pME_8Frp7ys88u0qfuhiCGBiA4ng1hkFk6y073504Vdyu4qKQrkU3tPnRxYhoD_WY5CK27HT-g4w2kjZMMxUdZbY4rdVBWqfIXdebr5MNpElyCpd2rTGTWcA0RasfoJa6Rqa7wch_38ASPCJ"
   );
+  const [posterId, setPosterId] = useState("");
+  const [audioUrl, setAudioUrl] = useState("https://s3.eu-central-003.backblazeb2.com/tunedin/masters/audio.flac");
+  const [audioKey, setAudioKey] = useState("b2://tunedin-audio/2025/master.flac");
+  const [audioDuration, setAudioDuration] = useState(278.12);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isUploadingArtwork, setIsUploadingArtwork] = useState(false);
+  const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+
+  const artworkFileInputRef = useRef<HTMLInputElement | null>(null);
+  const audioFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Genre Tags State
   const [activeTags, setActiveTags] = useState<string[]>([
@@ -516,7 +527,7 @@ export default function AdminDashboardPage() {
   const [activeFileName, setActiveFileName] = useState("staged_master_48k24b.flac");
   const [activeFileSize, setActiveFileSize] = useState("42.8 MB");
   const [currentSeconds, setCurrentSeconds] = useState(149.10); // 02:29.10 default
-  const totalDurationSeconds = 278.12; // 04:38.12
+  const totalDurationSeconds = audioDuration;
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
@@ -702,28 +713,161 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleSaveDraft = () => {
-    showToast(`Draft for "${trackTitle}" saved to cloud cache.`);
+  // File upload handlers for Ingestion Studio
+  const uploadArtworkFile = async (file: File) => {
+    setIsUploadingArtwork(true);
+    showToast(`Uploading artwork "${file.name}"...`);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/songs/upload-artwork", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success && data.url) {
+        setArtworkUrl(data.url);
+        if (data.poster_Id) setPosterId(data.poster_Id);
+        showToast("Artwork successfully uploaded and applied.");
+      } else {
+        showToast(data.error || "Artwork upload failed.");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Network error uploading artwork.");
+    } finally {
+      setIsUploadingArtwork(false);
+    }
   };
 
-  const handlePublish = async () => {
+  const handleArtworkFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadArtworkFile(file);
+  };
+
+  const uploadAudioFile = async (file: File) => {
+    setIsUploadingAudio(true);
+    setActiveFileName(file.name);
+    const sizeInMB = (file.size / (1024 * 1024)).toFixed(1);
+    setActiveFileSize(`${sizeInMB} MB`);
+    showToast(`Staging master audio "${file.name}"...`);
+
     try {
-      const res = await fetch("/api/songs", {
+      const objectUrl = URL.createObjectURL(file);
+      const tempAudio = new Audio(objectUrl);
+      tempAudio.addEventListener("loadedmetadata", () => {
+        if (tempAudio.duration && !isNaN(tempAudio.duration) && isFinite(tempAudio.duration)) {
+          setAudioDuration(tempAudio.duration);
+          setCurrentSeconds(0);
+        }
+      });
+    } catch {}
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/songs/upload-audio", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (data.audioUrl) setAudioUrl(data.audioUrl);
+        if (data.audioKey) setAudioKey(data.audioKey);
+        showToast(`Master audio "${file.name}" ready.`);
+      } else {
+        showToast(data.error || "Audio upload warning.");
+      }
+    } catch {
+      showToast("Audio master staged locally.");
+    } finally {
+      setIsUploadingAudio(false);
+    }
+  };
+
+  const handleAudioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadAudioFile(file);
+  };
+
+  const handleSaveDraft = async () => {
+    if (!trackTitle.trim()) {
+      showToast("Please enter a track title before saving a draft.");
+      return;
+    }
+    setIsSavingDraft(true);
+    try {
+      const res = await fetch("/api/songs/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: trackTitle,
-          artist: [primaryArtist],
-          album: albumCollection,
-          duration: 278,
-          audio_url: "https://s3.eu-central-003.backblazeb2.com/tunedin/masters/audio.flac",
-          audio_Id: `b2://tunedin-audio/2025/tr-${Math.floor(1000 + Math.random() * 9000)}.flac`,
+          title: trackTitle.trim(),
+          artist: [primaryArtist.trim() || "Unknown Artist"],
+          album: albumCollection.trim() || "Single / Ingestion Draft",
+          duration: Math.round(audioDuration || 278),
+          audio_url: audioUrl,
+          audio_Id: audioKey,
           poster_url: artworkUrl,
-          poster_Id: `poster_${Date.now()}`,
-          genre: activeTags,
+          poster_Id: posterId || `poster_${Date.now()}`,
+          genre: activeTags.length > 0 ? activeTags : ["Electronic"],
           plays: 0,
           likes: 0,
-          aiObservation: { badge: "NEW", isrc },
+          aiObservation: { badge: "DRAFT", isrc: isrc.trim() || `US-TUN-25-${Date.now().toString().slice(-5)}` },
+          verificationStatus: "pending",
+          verified: false,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchCatalogSongs();
+        showToast(`Draft for "${trackTitle}" saved to MongoDB catalog as Pending.`);
+      } else {
+        showToast(data.error || "Failed to save draft.");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Network error saving draft.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!trackTitle.trim()) {
+      showToast("Please enter a track title.");
+      return;
+    }
+    if (!primaryArtist.trim()) {
+      showToast("Please enter primary artist.");
+      return;
+    }
+    if (!albumCollection.trim()) {
+      showToast("Please enter album or collection name.");
+      return;
+    }
+
+    setIsPublishing(true);
+    try {
+      const res = await fetch("/api/songs/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: trackTitle.trim(),
+          artist: [primaryArtist.trim()],
+          album: albumCollection.trim(),
+          duration: Math.round(audioDuration || 278),
+          audio_url: audioUrl,
+          audio_Id: audioKey,
+          poster_url: artworkUrl,
+          poster_Id: posterId || `poster_${Date.now()}`,
+          genre: activeTags.length > 0 ? activeTags : ["Electronic"],
+          plays: 0,
+          likes: 0,
+          aiObservation: { badge: "NEW", isrc: isrc.trim() || `US-TUN-25-${Date.now().toString().slice(-5)}` },
           verificationStatus: "verified",
           verified: true,
         }),
@@ -731,12 +875,17 @@ export default function AdminDashboardPage() {
       const data = await res.json();
       if (data.success) {
         await fetchCatalogSongs();
-        showToast(`Master "${trackTitle}" published to MongoDB catalog!`);
+        showToast(`Master "${trackTitle}" published to TunedIn network!`);
+        // Regenerate next ISRC for the next song
+        const randNum = Math.floor(10000 + Math.random() * 90000);
+        setIsrc(`US-TUN-25-${randNum}`);
       } else {
         showToast(data.error || "Failed to publish master track.");
       }
     } catch {
       showToast("Error connecting to catalog API.");
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -1703,17 +1852,31 @@ export default function AdminDashboardPage() {
                   <span className={styles.aspectLabel}>Aspect 1:1</span>
                 </div>
 
+                {/* Hidden Artwork File Input */}
+                <input
+                  type="file"
+                  ref={artworkFileInputRef}
+                  accept="image/png,image/jpeg,image/webp,image/jpg"
+                  style={{ display: "none" }}
+                  onChange={handleArtworkFileChange}
+                />
+
                 {/* Dropzone Container */}
                 <div
                   className={styles.dropzoneContainer}
-                  onClick={() => {
-                    const newUrl = prompt("Enter new album artwork image URL:", artworkUrl);
-                    if (newUrl && newUrl.trim()) {
-                      setArtworkUrl(newUrl.trim());
-                      showToast("Updated release artwork canvas.");
-                    }
+                  onClick={() => artworkFileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                   }}
-                  title="Click to change release artwork"
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) uploadArtworkFile(file);
+                  }}
+                  title="Click or drop file to upload release artwork"
+                  style={{ cursor: "pointer" }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -1724,13 +1887,19 @@ export default function AdminDashboardPage() {
                   <div className={styles.dropzoneOverlay}></div>
                   <div className={styles.dropzoneContent}>
                     <div className={styles.dropzoneIconWrapper}>
-                      <span className="material-symbols-outlined text-[24px]">cloud_upload</span>
+                      <span className="material-symbols-outlined text-[24px]">
+                        {isUploadingArtwork ? "hourglass_top" : "cloud_upload"}
+                      </span>
                     </div>
-                    <p className={styles.dropzoneTitle}>Drop Release Artwork</p>
+                    <p className={styles.dropzoneTitle}>
+                      {isUploadingArtwork ? "Uploading to Cloud..." : "Drop Release Artwork"}
+                    </p>
                     <p className={styles.dropzoneSub}>or browse local disk directory</p>
                     <span className={styles.dropzoneSpecs}>3000x3000px • Max 15MB • JPG/PNG</span>
                   </div>
-                  <span className={styles.replacePill}>Replace Artwork</span>
+                  <span className={styles.replacePill}>
+                    {isUploadingArtwork ? "Uploading..." : "Replace Artwork"}
+                  </span>
                 </div>
 
                 {/* Chroma Swatches */}
@@ -1837,9 +2006,27 @@ export default function AdminDashboardPage() {
                         value={isrc}
                         onChange={(e) => setIsrc(e.target.value)}
                       />
-                      <span className={`material-symbols-outlined ${styles.verifiedIcon}`} title="Verified ISRC format">
-                        verified
-                      </span>
+                      <button
+                        type="button"
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          padding: 0,
+                        }}
+                        onClick={() => {
+                          const randNum = Math.floor(10000 + Math.random() * 90000);
+                          setIsrc(`US-TUN-25-${randNum}`);
+                          showToast("Generated new unique ISRC identifier.");
+                        }}
+                        title="Click to auto-generate a new ISRC"
+                      >
+                        <span className={`material-symbols-outlined ${styles.verifiedIcon}`}>
+                          verified
+                        </span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1895,14 +2082,29 @@ export default function AdminDashboardPage() {
                           {isPlaying ? "graphic_eq" : "album"}
                         </span>
                       </div>
-                      <div className={styles.audioTrackInfo}>
+                      {/* Hidden Audio File Input */}
+                      <input
+                        type="file"
+                        ref={audioFileInputRef}
+                        accept="audio/*,.flac,.wav,.mp3,.aac,.ogg,.m4a"
+                        style={{ display: "none" }}
+                        onChange={handleAudioFileChange}
+                      />
+                      <div
+                        className={styles.audioTrackInfo}
+                        onClick={() => audioFileInputRef.current?.click()}
+                        style={{ cursor: "pointer" }}
+                        title="Click to select master audio file (.flac, .wav, .mp3)"
+                      >
                         <div className={styles.audioFileNameRow}>
                           <span className={styles.audioFileName}>{activeFileName}</span>
                           <span className={styles.fileSizeBadge}>{activeFileSize}</span>
                           <span className={styles.losslessBadge}>48kHz / 24-bit Lossless</span>
                         </div>
                         <span style={{ fontSize: "11px", color: "#5f5e5e", marginTop: "2px" }}>
-                          Master Audio Engine • Direct Backblaze B2 Stream
+                          {isUploadingAudio
+                            ? "Staging Audio Master File to B2 Engine..."
+                            : "Master Audio Engine • Direct Backblaze B2 Stream (Click to change file)"}
                         </span>
                       </div>
                     </div>
@@ -1925,7 +2127,7 @@ export default function AdminDashboardPage() {
                   {/* Time Readout */}
                   <div className={styles.timeRow}>
                     <span className={styles.currentTimeDisplay}>{currentTime}</span>
-                    <span>Track Duration: 04:38.12</span>
+                    <span>Track Duration: {formatTime(audioDuration)}</span>
                   </div>
 
                   {/* 55 Frequency Bars Visualizer */}
@@ -2075,20 +2277,24 @@ export default function AdminDashboardPage() {
                     type="button"
                     className={styles.btnSecondary}
                     onClick={handleSaveDraft}
+                    disabled={isSavingDraft || isPublishing}
                   >
                     <span className="material-symbols-outlined text-[18px]" style={{ color: "#5f5e5e" }}>
-                      save
+                      {isSavingDraft ? "hourglass_top" : "save"}
                     </span>
-                    <span>Save Draft</span>
+                    <span>{isSavingDraft ? "Saving Draft..." : "Save Draft"}</span>
                   </button>
 
                   <button
                     type="button"
                     className={styles.btnPublish}
                     onClick={handlePublish}
+                    disabled={isPublishing || isSavingDraft}
                   >
-                    <span className="material-symbols-outlined text-[20px]">rocket_launch</span>
-                    <span>Publish to TunedIn Network</span>
+                    <span className="material-symbols-outlined text-[20px]">
+                      {isPublishing ? "hourglass_top" : "rocket_launch"}
+                    </span>
+                    <span>{isPublishing ? "Publishing to Network..." : "Publish to TunedIn Network"}</span>
                   </button>
                 </div>
               </div>
