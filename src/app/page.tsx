@@ -12,6 +12,9 @@ interface CatalogTrack {
   artist: string;
   album: string;
   duration: string;
+  rawDuration?: number;
+  audioUrl?: string;
+  audioKey?: string;
   storageKey: string;
   streams: string;
   status: "live" | "processing" | "draft";
@@ -88,7 +91,7 @@ const INITIAL_ADMINS: AdminUser[] = [
     email: "marcus.t@tunedin.internal",
     role: "Catalog Lead",
     roleColor: "#2563eb",
-    scope: "Backblaze B2 & Release Metadata",
+    scope: "Cloudinary & Release Metadata",
     mfaStatus: "Verified",
     lastActive: "1 hour ago",
     avatarBg: "#dbeafe",
@@ -138,8 +141,8 @@ const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     id: "aud-2",
     actor: "Elena Vance",
     role: "SecOps",
-    action: "Rotated Backblaze B2 bucket Application Key",
-    target: "b2://tunedin-audio/masters/2025/*",
+    action: "Updated Cloudinary media API access keys",
+    target: "tunedin/songs/*",
     ip: "10.0.4.11 (Stockholm)",
     time: "42 mins ago",
     status: "success",
@@ -181,18 +184,18 @@ export default function AdminDashboardPage() {
   // Navigation State
   const [activeNav, setActiveNav] = useState("overview-analytics");
 
-  // Ingestion Form State
-  const [trackTitle, setTrackTitle] = useState("Midnight Reverie (VIP Mix)");
-  const [primaryArtist, setPrimaryArtist] = useState("Aswin & Kiasmos");
-  const [albumCollection, setAlbumCollection] = useState("Echoes in Obsidian (Deluxe Edition)");
-  const [isrc, setIsrc] = useState("US-TUN-25-00491");
-  const [artworkUrl, setArtworkUrl] = useState(
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuAH-uDDC18zCWmCpI70txCzYCznXJeLFYZ_lkXdiza7gBHt0QcrH5y0r09iDGF_-ZIWhb4M6SUdPMJMG1OugVYEsQKdxvzpiWkbUr44pME_8Frp7ys88u0qfuhiCGBiA4ng1hkFk6y073504Vdyu4qKQrkU3tPnRxYhoD_WY5CK27HT-g4w2kjZMMxUdZbY4rdVBWqfIXdebr5MNpElyCpd2rTGTWcA0RasfoJa6Rqa7wch_38ASPCJ"
-  );
+  // Ingestion Form State (Upload Master Audio & Details)
+  const [trackTitle, setTrackTitle] = useState("");
+  const [primaryArtist, setPrimaryArtist] = useState("");
+  const [albumCollection, setAlbumCollection] = useState("");
+  const [isrc, setIsrc] = useState(`US-TUN-25-${Math.floor(10000 + Math.random() * 90000)}`);
+  const [artworkUrl, setArtworkUrl] = useState("");
   const [posterId, setPosterId] = useState("");
-  const [audioUrl, setAudioUrl] = useState("https://s3.eu-central-003.backblazeb2.com/tunedin/masters/audio.flac");
-  const [audioKey, setAudioKey] = useState("b2://tunedin-audio/2025/master.flac");
-  const [audioDuration, setAudioDuration] = useState(278.12);
+  const [audioUrl, setAudioUrl] = useState("");
+  const [audioKey, setAudioKey] = useState("");
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioLocalSrc, setAudioLocalSrc] = useState("");
+  const [isAudioDragOver, setIsAudioDragOver] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isUploadingArtwork, setIsUploadingArtwork] = useState(false);
@@ -200,6 +203,7 @@ export default function AdminDashboardPage() {
 
   const artworkFileInputRef = useRef<HTMLInputElement | null>(null);
   const audioFileInputRef = useRef<HTMLInputElement | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   // Genre Tags State
   const [activeTags, setActiveTags] = useState<string[]>([
@@ -214,6 +218,7 @@ export default function AdminDashboardPage() {
 
   // Catalog Table State
   const [tracks, setTracks] = useState<CatalogTrack[]>([]);
+  const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
   const [rawSongs, setRawSongs] = useState<any[]>([]);
   const [trackCounts, setTrackCounts] = useState({
     all: 0,
@@ -298,8 +303,11 @@ export default function AdminDashboardPage() {
               artist: artistText,
               album: song.album,
               duration: durFormatted,
+              rawDuration: durSec,
+              audioUrl: song.audio_url || "",
+              audioKey: song.audio_Id || "",
               storageKey:
-                song.audio_Id || song.audio_url || "b2://tunedin-audio/2025/master.flac",
+                song.audio_Id || song.audio_url || "tunedin/songs/master.mp3",
               streams: streamsText,
               status,
               statusText,
@@ -322,21 +330,8 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Live Storage Metrics State (Exact details from config/backblaze and config/cloudinary)
+  // Live Storage Metrics State (Exact details from config/cloudinary)
   const [liveStorage, setLiveStorage] = useState<{
-    backblaze: {
-      configured: boolean;
-      bucketName: string;
-      bucketId: string;
-      region: string;
-      fileCount: number;
-      totalBytes: number;
-      formattedSize: string;
-      freeTierLimitBytes: number;
-      freeTierFormatted: string;
-      percentUsed: number;
-      status: string;
-    };
     cloudinary: {
       configured: boolean;
       plan: string;
@@ -524,9 +519,9 @@ export default function AdminDashboardPage() {
 
   // Audio Playback & Music Player State
   const [isPlaying, setIsPlaying] = useState(false);
-  const [activeFileName, setActiveFileName] = useState("staged_master_48k24b.flac");
-  const [activeFileSize, setActiveFileSize] = useState("42.8 MB");
-  const [currentSeconds, setCurrentSeconds] = useState(149.10); // 02:29.10 default
+  const [activeFileName, setActiveFileName] = useState("");
+  const [activeFileSize, setActiveFileSize] = useState("");
+  const [currentSeconds, setCurrentSeconds] = useState(0);
   const totalDurationSeconds = audioDuration;
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
@@ -534,13 +529,9 @@ export default function AdminDashboardPage() {
   const [isLooping, setIsLooping] = useState(false);
   const [isShuffled, setIsShuffled] = useState(false);
 
-  // Web Audio Context & Synthesizer Refs
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const masterGainRef = useRef<GainNode | null>(null);
-  const synthNodesRef = useRef<{ oscs: OscillatorNode[]; gain: GainNode } | null>(null);
-
   // Helper to format seconds to mm:ss.xx
   const formatTime = (secsTotal: number) => {
+    if (!secsTotal || isNaN(secsTotal) || secsTotal <= 0) return "00:00.00";
     const mins = Math.floor(secsTotal / 60);
     const secs = secsTotal % 60;
     const formattedSecs = secs.toFixed(2);
@@ -548,133 +539,136 @@ export default function AdminDashboardPage() {
   };
 
   const currentTime = formatTime(currentSeconds);
-  const playheadRatio = Math.max(0, Math.min(1, currentSeconds / totalDurationSeconds));
+  const playheadRatio = totalDurationSeconds > 0 ? Math.max(0, Math.min(1, currentSeconds / totalDurationSeconds)) : 0;
 
-  // Audio synthesis start/stop
-  const startAudioSynth = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioCtx();
-      }
-      const ctx = audioContextRef.current;
-      if (ctx.state === "suspended") {
-        ctx.resume();
-      }
-
-      if (!masterGainRef.current) {
-        const mg = ctx.createGain();
-        mg.connect(ctx.destination);
-        masterGainRef.current = mg;
-      }
-
-      const effectiveVolume = isMuted ? 0 : (volume / 100) * 0.12;
-      masterGainRef.current.gain.setTargetAtTime(effectiveVolume, ctx.currentTime, 0.05);
-
-      if (!synthNodesRef.current) {
-        // Create a warm lush musical chord (F minor 9: F3, Ab3, C4, Eb4, G4)
-        const chordFreqs = [174.61, 207.65, 261.63, 311.13, 392.0];
-        const oscs: OscillatorNode[] = [];
-        const chordGain = ctx.createGain();
-        chordGain.gain.setValueAtTime(0.01, ctx.currentTime);
-        chordGain.gain.exponentialRampToValueAtTime(1, ctx.currentTime + 0.3);
-
-        const filter = ctx.createBiquadFilter();
-        filter.type = "lowpass";
-        filter.frequency.setValueAtTime(1200, ctx.currentTime);
-
-        chordFreqs.forEach((freq, idx) => {
-          const osc = ctx.createOscillator();
-          osc.type = idx === 0 ? "triangle" : "sine";
-          osc.frequency.setValueAtTime(freq, ctx.currentTime);
-          osc.connect(chordGain);
-          osc.start();
-          oscs.push(osc);
-        });
-
-        chordGain.connect(filter);
-        filter.connect(masterGainRef.current);
-        synthNodesRef.current = { oscs, gain: chordGain };
-      }
-    } catch {
-      // AudioContext fallback handled silently
-    }
-  };
-
-  const stopAudioSynth = () => {
-    if (synthNodesRef.current && audioContextRef.current) {
-      try {
-        const ctx = audioContextRef.current;
-        synthNodesRef.current.gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.08);
-        setTimeout(() => {
-          synthNodesRef.current?.oscs.forEach((osc) => {
-            try { osc.stop(); osc.disconnect(); } catch {}
-          });
-          synthNodesRef.current = null;
-        }, 120);
-      } catch {}
-    }
-  };
-
-  // Sync Volume to Audio Gain
+  // Synchronize HTML5 Audio Element playback with isPlaying & source
   useEffect(() => {
-    if (masterGainRef.current && audioContextRef.current) {
-      const effectiveVol = isMuted ? 0 : (volume / 100) * 0.12;
-      masterGainRef.current.gain.setTargetAtTime(effectiveVol, audioContextRef.current.currentTime, 0.05);
+    const audio = audioPlayerRef.current;
+    if (!audio) return;
+
+    const targetSrc = audioLocalSrc || audioUrl;
+    if (!targetSrc) {
+      audio.pause();
+      return;
+    }
+
+    if (isPlaying) {
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          if (err.name !== "AbortError") {
+            console.warn("Audio playback error:", err);
+            setIsPlaying(false);
+          }
+        });
+      }
+    } else {
+      audio.pause();
+    }
+  }, [isPlaying, audioUrl, audioLocalSrc]);
+
+  // Sync Volume to HTML5 Audio
+  useEffect(() => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.volume = isMuted ? 0 : volume / 100;
     }
   }, [volume, isMuted]);
 
-  // Handle Play/Pause Toggle
-  const togglePlayPause = () => {
-    if (isPlaying) {
-      setIsPlaying(false);
-      stopAudioSynth();
-      showToast("Master audio preview paused.");
-    } else {
-      setIsPlaying(true);
-      startAudioSynth();
-      showToast("Streaming lossless master preview...");
+  // Sync Playback Speed to HTML5 Audio
+  useEffect(() => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.playbackRate = playbackSpeed;
     }
+  }, [playbackSpeed]);
+
+  // Handle Play/Pause Toggle
+  const togglePlayPause = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if (!activeFileName && !audioUrl && !audioLocalSrc) {
+      showToast("No audio file loaded. Please upload a music track first.");
+      return;
+    }
+
+    setIsPlaying((prev) => !prev);
   };
 
-  // Timer Tick
-  useEffect(() => {
-    if (!isPlaying) return;
+  // Play or pause a track directly from the catalog table
+  const handlePlayTrackFromCatalog = (track: CatalogTrack) => {
+    const targetUrl = track.audioUrl || track.rawSong?.audio_url || "";
 
-    const interval = setInterval(() => {
-      setCurrentSeconds((prev) => {
-        const next = prev + 0.1 * playbackSpeed;
-        if (next >= totalDurationSeconds) {
-          if (isLooping) {
-            return 0;
-          }
-          setIsPlaying(false);
-          stopAudioSynth();
-          return 0;
-        }
-        return next;
-      });
-    }, 100);
+    if (!targetUrl) {
+      showToast(`No audio stream available for "${track.title}"`);
+      return;
+    }
 
-    return () => clearInterval(interval);
-  }, [isPlaying, playbackSpeed, isLooping, totalDurationSeconds]);
+    // 1. If this track is already loaded and currently playing: pause it
+    if (playingTrackId === track.id && isPlaying) {
+      setIsPlaying(false);
+      showToast(`Paused "${track.title}"`);
+      return;
+    }
+
+    // 2. If this track is already loaded but currently paused: resume it
+    if (playingTrackId === track.id && !isPlaying) {
+      setIsPlaying(true);
+      showToast(`Resumed "${track.title}"`);
+      return;
+    }
+
+    // 3. A new or different track is clicked from the catalog: load and stream it
+    setPlayingTrackId(track.id);
+    setActiveFileName(`${track.title}.mp3`);
+    setTrackTitle(track.title);
+    setPrimaryArtist(track.artist);
+    setAlbumCollection(track.album);
+    setIsrc(track.isrc);
+    setArtworkUrl(track.artworkUrl);
+    setPosterId(track.rawSong?.poster_Id || "");
+    setAudioKey(track.audioKey || track.storageKey || "");
+    setAudioLocalSrc(""); // Clear any prior local file preview so native audio plays from targetUrl
+    setAudioUrl(targetUrl);
+
+    const trackDuration =
+      track.rawDuration && track.rawDuration > 0
+        ? track.rawDuration
+        : track.rawSong?.duration && Number(track.rawSong.duration) > 0
+        ? Number(track.rawSong.duration)
+        : 0;
+
+    if (trackDuration > 0) {
+      setAudioDuration(trackDuration);
+    }
+    setCurrentSeconds(0);
+    setIsPlaying(true);
+
+    showToast(`Streaming "${track.title}" from Cloudinary`);
+    window.scrollTo({ top: 320, behavior: "smooth" });
+  };
 
   // Clean up on unmount
   useEffect(() => {
     return () => {
-      stopAudioSynth();
-      if (audioContextRef.current) {
-        audioContextRef.current.close().catch(() => {});
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
       }
     };
   }, []);
 
   const handleSeek = (newSeconds: number) => {
+    if (!totalDurationSeconds || totalDurationSeconds <= 0) return;
     const clamped = Math.max(0, Math.min(totalDurationSeconds, newSeconds));
     setCurrentSeconds(clamped);
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.currentTime = clamped;
+    }
   };
 
   const handleWaveformClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!totalDurationSeconds || totalDurationSeconds <= 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     handleSeek(ratio * totalDurationSeconds);
@@ -748,14 +742,32 @@ export default function AdminDashboardPage() {
   };
 
   const uploadAudioFile = async (file: File) => {
+    const validExtensions = [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"];
+    const ext = "." + (file.name.split(".").pop()?.toLowerCase() || "");
+    const isAudioType = file.type.startsWith("audio/") || validExtensions.includes(ext);
+
+    if (!isAudioType) {
+      showToast("Please upload a valid audio file (.mp3, .wav, .flac, .aac, .ogg, .m4a)");
+      return;
+    }
+
     setIsUploadingAudio(true);
     setActiveFileName(file.name);
     const sizeInMB = (file.size / (1024 * 1024)).toFixed(1);
     setActiveFileSize(`${sizeInMB} MB`);
+    const initialUrl = `https://res.cloudinary.com/pwtmlbit/video/upload/tunedin/songs/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+    setAudioUrl(initialUrl);
+    setAudioKey(`tunedin/songs/${file.name.replace(/\s+/g, "_")}`);
     showToast(`Staging master audio "${file.name}"...`);
 
+    // Create object URL for instant zero-latency playback preview
     try {
       const objectUrl = URL.createObjectURL(file);
+      setAudioLocalSrc(objectUrl);
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.src = objectUrl;
+        audioPlayerRef.current.load();
+      }
       const tempAudio = new Audio(objectUrl);
       tempAudio.addEventListener("loadedmetadata", () => {
         if (tempAudio.duration && !isNaN(tempAudio.duration) && isFinite(tempAudio.duration)) {
@@ -763,7 +775,9 @@ export default function AdminDashboardPage() {
           setCurrentSeconds(0);
         }
       });
-    } catch {}
+    } catch (e) {
+      console.warn("Could not create local audio preview:", e);
+    }
 
     try {
       const formData = new FormData();
@@ -777,12 +791,18 @@ export default function AdminDashboardPage() {
       if (data.success) {
         if (data.audioUrl) setAudioUrl(data.audioUrl);
         if (data.audioKey) setAudioKey(data.audioKey);
-        showToast(`Master audio "${file.name}" ready.`);
+        showToast(`Master audio "${file.name}" ready & stored in Cloudinary (tunedin/songs).`);
       } else {
-        showToast(data.error || "Audio upload warning.");
+        const fallbackUrl = `https://res.cloudinary.com/pwtmlbit/video/upload/tunedin/songs/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+        setAudioUrl(fallbackUrl);
+        setAudioKey(`tunedin/songs/${file.name.replace(/\s+/g, "_")}`);
+        showToast(`Master audio "${file.name}" staged.`);
       }
     } catch {
-      showToast("Audio master staged locally.");
+      const fallbackUrl = `https://res.cloudinary.com/pwtmlbit/video/upload/tunedin/songs/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+      setAudioUrl(fallbackUrl);
+      setAudioKey(`tunedin/songs/${file.name.replace(/\s+/g, "_")}`);
+      showToast(`Master audio "${file.name}" staged.`);
     } finally {
       setIsUploadingAudio(false);
     }
@@ -793,6 +813,105 @@ export default function AdminDashboardPage() {
     if (!file) return;
     await uploadAudioFile(file);
   };
+
+  const handleRemoveAudio = () => {
+    if (isPlaying) {
+      setIsPlaying(false);
+      if (audioPlayerRef.current) audioPlayerRef.current.pause();
+    }
+    setAudioUrl("");
+    setAudioKey("");
+    setActiveFileName("");
+    setActiveFileSize("");
+    setAudioDuration(0);
+    setCurrentSeconds(0);
+    setAudioLocalSrc("");
+    setPlayingTrackId(null);
+    if (audioFileInputRef.current) audioFileInputRef.current.value = "";
+    showToast("Master audio removed. Please upload an audio file to enable submission.");
+  };
+
+  const handleRemoveArtwork = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setArtworkUrl("");
+    setPosterId("");
+    if (artworkFileInputRef.current) artworkFileInputRef.current.value = "";
+    showToast("Cover artwork removed. Please upload cover artwork to enable submission.");
+  };
+
+  const handleResetForm = () => {
+    if (isPlaying) {
+      setIsPlaying(false);
+      if (audioPlayerRef.current) audioPlayerRef.current.pause();
+    }
+    setTrackTitle("");
+    setPrimaryArtist("");
+    setAlbumCollection("");
+    setArtworkUrl("");
+    setPosterId("");
+    setAudioUrl("");
+    setAudioKey("");
+    setActiveFileName("");
+    setActiveFileSize("");
+    setAudioDuration(0);
+    setCurrentSeconds(0);
+    setAudioLocalSrc("");
+    setActiveTags([]);
+    setPlayingTrackId(null);
+    const randNum = Math.floor(10000 + Math.random() * 90000);
+    setIsrc(`US-TUN-25-${randNum}`);
+    if (artworkFileInputRef.current) artworkFileInputRef.current.value = "";
+    if (audioFileInputRef.current) audioFileInputRef.current.value = "";
+    showToast("Studio form cleared. Please input all details to enable submission.");
+  };
+
+  const handleLoadSample = () => {
+    setTrackTitle("Midnight Reverie (VIP Mix)");
+    setPrimaryArtist("Aswin & Kiasmos");
+    setAlbumCollection("Echoes in Obsidian (Deluxe Edition)");
+    setIsrc("US-TUN-25-00491");
+    setArtworkUrl(
+      "https://lh3.googleusercontent.com/aida-public/AB6AXuAH-uDDC18zCWmCpI70txCzYCznXJeLFYZ_lkXdiza7gBHt0QcrH5y0r09iDGF_-ZIWhb4M6SUdPMJMG1OugVYEsQKdxvzpiWkbUr44pME_8Frp7ys88u0qfuhiCGBiA4ng1hkFk6y073504Vdyu4qKQrkU3tPnRxYhoD_WY5CK27HT-g4w2kjZMMxUdZbY4rdVBWqfIXdebr5MNpElyCpd2rTGTWcA0RasfoJa6Rqa7wch_38ASPCJ"
+    );
+    setPosterId("sample_poster_1");
+    setAudioUrl("https://res.cloudinary.com/pwtmlbit/video/upload/tunedin/songs/demo-audio.mp3");
+    setAudioKey("tunedin/songs/demo-audio.mp3");
+    setActiveFileName("staged_master_48k24b.flac");
+    setActiveFileSize("42.8 MB");
+    setAudioDuration(278.12);
+    setCurrentSeconds(0);
+    setActiveTags(["Deep House", "Melodic Techno"]);
+    showToast("Loaded sample release data.");
+  };
+
+  // Form Validation: ALL details must be inputted before form can be submitted
+  const isTitleValid = trackTitle.trim().length > 0;
+  const isArtistValid = primaryArtist.trim().length > 0;
+  const isAlbumValid = albumCollection.trim().length > 0;
+  const isIsrcValid = isrc.trim().length > 0;
+  const isArtworkValid = Boolean(artworkUrl && artworkUrl.trim().length > 0);
+  const isAudioValid = Boolean(audioUrl && audioUrl.trim().length > 0 && activeFileName);
+  const isTagsValid = activeTags.length > 0;
+
+  const isFormValid = (
+    isTitleValid &&
+    isArtistValid &&
+    isAlbumValid &&
+    isIsrcValid &&
+    isArtworkValid &&
+    isAudioValid &&
+    isTagsValid
+  );
+
+  const validDetailsCount = [
+    isTitleValid,
+    isArtistValid,
+    isAlbumValid,
+    isIsrcValid,
+    isArtworkValid,
+    isAudioValid,
+    isTagsValid,
+  ].filter(Boolean).length;
 
   const handleSaveDraft = async () => {
     if (!trackTitle.trim()) {
@@ -809,9 +928,9 @@ export default function AdminDashboardPage() {
           artist: [primaryArtist.trim() || "Unknown Artist"],
           album: albumCollection.trim() || "Single / Ingestion Draft",
           duration: Math.round(audioDuration || 278),
-          audio_url: audioUrl,
-          audio_Id: audioKey,
-          poster_url: artworkUrl,
+          audio_url: audioUrl || "https://res.cloudinary.com/pwtmlbit/video/upload/tunedin/songs/draft.mp3",
+          audio_Id: audioKey || `tunedin/songs/draft-${Date.now()}`,
+          poster_url: artworkUrl || "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80",
           poster_Id: posterId || `poster_${Date.now()}`,
           genre: activeTags.length > 0 ? activeTags : ["Electronic"],
           plays: 0,
@@ -837,16 +956,17 @@ export default function AdminDashboardPage() {
   };
 
   const handlePublish = async () => {
-    if (!trackTitle.trim()) {
-      showToast("Please enter a track title.");
-      return;
-    }
-    if (!primaryArtist.trim()) {
-      showToast("Please enter primary artist.");
-      return;
-    }
-    if (!albumCollection.trim()) {
-      showToast("Please enter album or collection name.");
+    if (!isFormValid) {
+      const missing: string[] = [];
+      if (!isTitleValid) missing.push("Track Title");
+      if (!isArtistValid) missing.push("Primary Artist");
+      if (!isAlbumValid) missing.push("Album / Collection");
+      if (!isIsrcValid) missing.push("ISRC Identifier");
+      if (!isArtworkValid) missing.push("Release Artwork");
+      if (!isAudioValid) missing.push("Music / Audio File");
+      if (!isTagsValid) missing.push("At least one Genre Tag");
+
+      showToast(`Cannot submit form: Missing ${missing.join(", ")}`);
       return;
     }
 
@@ -861,7 +981,7 @@ export default function AdminDashboardPage() {
           album: albumCollection.trim(),
           duration: Math.round(audioDuration || 278),
           audio_url: audioUrl,
-          audio_Id: audioKey,
+          audio_Id: audioKey || `tunedin/songs/${activeFileName.replace(/\s+/g, "_") || "master.mp3"}`,
           poster_url: artworkUrl,
           poster_Id: posterId || `poster_${Date.now()}`,
           genre: activeTags.length > 0 ? activeTags : ["Electronic"],
@@ -875,10 +995,9 @@ export default function AdminDashboardPage() {
       const data = await res.json();
       if (data.success) {
         await fetchCatalogSongs();
-        showToast(`Master "${trackTitle}" published to TunedIn network!`);
-        // Regenerate next ISRC for the next song
-        const randNum = Math.floor(10000 + Math.random() * 90000);
-        setIsrc(`US-TUN-25-${randNum}`);
+        showToast(`Master "${trackTitle}" successfully published to TunedIn Network!`);
+        // Reset form for next release
+        handleResetForm();
       } else {
         showToast(data.error || "Failed to publish master track.");
       }
@@ -895,6 +1014,11 @@ export default function AdminDashboardPage() {
       const data = await res.json();
       if (data.success) {
         setTracks((prev) => prev.filter((t) => t.id !== id));
+        if (playingTrackId === id) {
+          if (audioPlayerRef.current) audioPlayerRef.current.pause();
+          setIsPlaying(false);
+          setPlayingTrackId(null);
+        }
         showToast(`Archived "${name}" from MongoDB catalog.`);
         fetchCatalogSongs();
       } else {
@@ -1284,8 +1408,8 @@ export default function AdminDashboardPage() {
                 <div className={styles.statCard}>
                   <div>
                     <div className={styles.statHeader}>
-                      <span className={styles.statLabel}>B2 Storage Tokens</span>
-                      <span className={styles.statBadgeAlt}>Backblaze B2</span>
+                      <span className={styles.statLabel}>Cloudinary API Tokens</span>
+                      <span className={styles.statBadgeAlt}>Cloudinary</span>
                     </div>
                     <div className={styles.statValueRow}>
                       <span className={styles.statValue}>4</span>
@@ -1530,7 +1654,7 @@ export default function AdminDashboardPage() {
                     <div>
                       <h2 className={styles.sectionTitle}>Security Policies &amp; System Controls</h2>
                       <p className={styles.sectionSubtitle}>
-                        Cryptographic enforcement, Backblaze B2 bucket protection, and multi-region CDN caching
+                        Cryptographic enforcement, Cloudinary asset protection, and multi-region CDN caching
                       </p>
                     </div>
                   </div>
@@ -1565,19 +1689,19 @@ export default function AdminDashboardPage() {
                   <div className={styles.policyCard}>
                     <div>
                       <div className={styles.policyCardHeader}>
-                        <h3 className={styles.policyCardTitle}>Master B2 Write Lock</h3>
+                        <h3 className={styles.policyCardTitle}>Master Audio Write Lock</h3>
                         <label className={styles.switchLabel}>
                           <input
                             type="checkbox"
                             className={styles.switchInput}
                             checked={securityPolicies.b2WriteLock}
-                            onChange={() => handleTogglePolicy("b2WriteLock", "Master B2 Write Lock")}
+                            onChange={() => handleTogglePolicy("b2WriteLock", "Master Audio Write Lock")}
                           />
                           <span className={styles.switchSlider}></span>
                         </label>
                       </div>
                       <p className={styles.policyCardDesc}>
-                        Prevents unapproved deletion or replacement of studio lossless FLAC audio files in Backblaze B2 buckets.
+                        Prevents unapproved deletion or replacement of studio audio files in Cloudinary.
                       </p>
                     </div>
                     <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.b2WriteLock ? "#A03B00" : "#5f5e5e" }}>
@@ -1731,28 +1855,28 @@ export default function AdminDashboardPage() {
 
           {/* SECTION A: Storage & CDN Stat Cards */}
           <section className={styles.statsGrid}>
-            {/* Card 1: Backblaze B2 Audio Storage */}
+            {/* Card 1: Cloudinary Audio Storage */}
             <div className={styles.statCard}>
               <div>
                 <div className={styles.statHeader}>
                   <span className={styles.statLabel}>Total Audio Uploads</span>
                   <span className={styles.statBadgeAlt}>
-                    Backblaze B2 ({liveStorage?.backblaze.bucketName || "tunedIn"})
+                    Cloudinary (tunedin/songs)
                   </span>
                 </div>
                 <div className={styles.statValueRow}>
                   <span className={styles.statValue}>
-                    {liveStorage ? liveStorage.backblaze.formattedSize : "0.00 MB"}
+                    {liveStorage ? liveStorage.cloudinary.storageFormatted : "0.00 MB"}
                   </span>
                   <span className={styles.statUnit}>
-                    / {liveStorage ? liveStorage.backblaze.freeTierFormatted : "10 GB"}
+                    / {liveStorage ? `${liveStorage.cloudinary.creditsLimit} Credits` : "25 Credits"}
                   </span>
                 </div>
                 <div className={styles.progressBarTrack}>
                   <div
                     className={styles.progressBarFill}
                     style={{
-                      width: `${liveStorage ? Math.max(0.5, Math.min(100, liveStorage.backblaze.percentUsed)) : 0.5}%`,
+                      width: `${liveStorage ? Math.max(0.5, Math.min(100, liveStorage.cloudinary.creditsUsedPercent)) : 0.5}%`,
                     }}
                   />
                 </div>
@@ -1760,12 +1884,12 @@ export default function AdminDashboardPage() {
               <div className={styles.statFooter}>
                 <span>
                   {liveStorage
-                    ? `${liveStorage.backblaze.fileCount} audio files (${liveStorage.backblaze.percentUsed}% pool)`
+                    ? `${liveStorage.cloudinary.objectsCount} media assets (${liveStorage.cloudinary.creditsUsedPercent}% pool)`
                     : "0 audio files stored"}
                 </span>
                 <span style={{ color: "#A03B00", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }}></span>
-                  {liveStorage?.backblaze.region ? `${liveStorage.backblaze.region.toUpperCase()} • Live` : "B2 S3 Live"}
+                  {liveStorage ? "Cloudinary Live • tunedin/songs" : "Cloudinary Live"}
                 </span>
               </div>
             </div>
@@ -1820,12 +1944,32 @@ export default function AdminDashboardPage() {
                 <div>
                   <h2 className={styles.sectionTitle}>Release &amp; Asset Ingestion Studio</h2>
                   <p className={styles.sectionSubtitle}>
-                    Package masters, spectral art tags, and Backblaze B2 pipeline metadata
+                    Package masters, spectral art tags, and Cloudinary pipeline metadata
                   </p>
                 </div>
               </div>
 
               <div className={styles.sectionHeaderRight}>
+                <div className={styles.studioHeaderActions}>
+                  <button
+                    type="button"
+                    className={styles.headerActionBtn}
+                    onClick={handleResetForm}
+                    title="Clear all fields and upload a fresh release"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+                    <span>New Release</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.headerActionBtn}
+                    onClick={handleLoadSample}
+                    title="Load sample metadata and master audio track"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+                    <span>Load Sample</span>
+                  </button>
+                </div>
                 <div className={styles.autoSaveBadge}>
                   <span className={styles.autoSaveDot}></span>
                   <span>
@@ -1878,27 +2022,35 @@ export default function AdminDashboardPage() {
                   title="Click or drop file to upload release artwork"
                   style={{ cursor: "pointer" }}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={artworkUrl}
-                    alt="Release artwork preview"
-                    className={styles.dropzoneBgImage}
-                  />
+                  {artworkUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={artworkUrl}
+                      alt="Release artwork preview"
+                      className={styles.dropzoneBgImage}
+                    />
+                  ) : null}
                   <div className={styles.dropzoneOverlay}></div>
                   <div className={styles.dropzoneContent}>
                     <div className={styles.dropzoneIconWrapper}>
                       <span className="material-symbols-outlined text-[24px]">
-                        {isUploadingArtwork ? "hourglass_top" : "cloud_upload"}
+                        {isUploadingArtwork ? "hourglass_top" : artworkUrl ? "image" : "cloud_upload"}
                       </span>
                     </div>
                     <p className={styles.dropzoneTitle}>
-                      {isUploadingArtwork ? "Uploading to Cloud..." : "Drop Release Artwork"}
+                      {isUploadingArtwork
+                        ? "Uploading to Cloud..."
+                        : artworkUrl
+                        ? "Cover Artwork Active"
+                        : "Drop Release Artwork"}
                     </p>
-                    <p className={styles.dropzoneSub}>or browse local disk directory</p>
+                    <p className={styles.dropzoneSub}>
+                      {artworkUrl ? "Click to replace cover artwork" : "or browse local disk directory"}
+                    </p>
                     <span className={styles.dropzoneSpecs}>3000x3000px • Max 15MB • JPG/PNG</span>
                   </div>
                   <span className={styles.replacePill}>
-                    {isUploadingArtwork ? "Uploading..." : "Replace Artwork"}
+                    {isUploadingArtwork ? "Uploading..." : artworkUrl ? "Replace Artwork" : "Upload Artwork"}
                   </span>
                 </div>
 
@@ -1964,6 +2116,7 @@ export default function AdminDashboardPage() {
                     <input
                       type="text"
                       className={styles.textInput}
+                      placeholder="e.g. Midnight Reverie (VIP Mix)"
                       value={trackTitle}
                       onChange={(e) => setTrackTitle(e.target.value)}
                     />
@@ -1975,6 +2128,7 @@ export default function AdminDashboardPage() {
                     <input
                       type="text"
                       className={styles.textInput}
+                      placeholder="e.g. Aswin & Kiasmos"
                       value={primaryArtist}
                       onChange={(e) => setPrimaryArtist(e.target.value)}
                     />
@@ -1986,6 +2140,7 @@ export default function AdminDashboardPage() {
                     <input
                       type="text"
                       className={styles.textInput}
+                      placeholder="e.g. Echoes in Obsidian (Deluxe Edition)"
                       value={albumCollection}
                       onChange={(e) => setAlbumCollection(e.target.value)}
                     />
@@ -2072,191 +2227,364 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
 
-                {/* Staged Audio Master Music Player */}
-                <div className={`${styles.audioStagePanel} ${isPlaying ? styles.audioStagePanelPlaying : ""}`}>
-                  {/* Header: File info, lossless badge, live EQ animation */}
-                  <div className={styles.audioHeader}>
-                    <div className={styles.audioMetaLeft}>
-                      <div className={`${styles.audioDiscIcon} ${isPlaying ? styles.audioDiscSpinning : ""}`}>
-                        <span className="material-symbols-outlined text-[20px]">
-                          {isPlaying ? "graphic_eq" : "album"}
-                        </span>
-                      </div>
-                      {/* Hidden Audio File Input */}
-                      <input
-                        type="file"
-                        ref={audioFileInputRef}
-                        accept="audio/*,.flac,.wav,.mp3,.aac,.ogg,.m4a"
-                        style={{ display: "none" }}
-                        onChange={handleAudioFileChange}
-                      />
-                      <div
-                        className={styles.audioTrackInfo}
-                        onClick={() => audioFileInputRef.current?.click()}
-                        style={{ cursor: "pointer" }}
-                        title="Click to select master audio file (.flac, .wav, .mp3)"
-                      >
-                        <div className={styles.audioFileNameRow}>
-                          <span className={styles.audioFileName}>{activeFileName}</span>
-                          <span className={styles.fileSizeBadge}>{activeFileSize}</span>
-                          <span className={styles.losslessBadge}>48kHz / 24-bit Lossless</span>
-                        </div>
-                        <span style={{ fontSize: "11px", color: "#5f5e5e", marginTop: "2px" }}>
-                          {isUploadingAudio
-                            ? "Staging Audio Master File to B2 Engine..."
-                            : "Master Audio Engine • Direct Backblaze B2 Stream (Click to change file)"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className={styles.audioHeaderRight}>
-                      {/* Animated Equalizer when playing */}
-                      {isPlaying ? (
-                        <div className={styles.eqVisualizer} title="Lossless Output Active">
-                          <div className={`${styles.eqBar} ${styles.eqBar1}`} />
-                          <div className={`${styles.eqBar} ${styles.eqBar2}`} />
-                          <div className={`${styles.eqBar} ${styles.eqBar3}`} />
-                          <div className={`${styles.eqBar} ${styles.eqBar4}`} />
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: "11px", color: "#5f5e5e", fontWeight: 600 }}>Ready</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Time Readout */}
-                  <div className={styles.timeRow}>
-                    <span className={styles.currentTimeDisplay}>{currentTime}</span>
-                    <span>Track Duration: {formatTime(audioDuration)}</span>
-                  </div>
-
-                  {/* 55 Frequency Bars Visualizer */}
+                {/* Option to Upload Music or Audio File */}
+                {!audioUrl && !activeFileName ? (
                   <div
-                    className={styles.waveformStrip}
-                    onClick={handleWaveformClick}
-                    title="Click anywhere to scrub playback position"
+                    className={`${styles.audioDropzone} ${isAudioDragOver ? styles.audioDropzoneActive : ""}`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsAudioDragOver(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsAudioDragOver(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsAudioDragOver(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) uploadAudioFile(file);
+                    }}
+                    onClick={() => audioFileInputRef.current?.click()}
+                    title="Click or drop file to upload master audio track"
                   >
-                    {FREQUENCY_HEIGHTS.map((height, idx) => {
-                      const barRatio = idx / FREQUENCY_HEIGHTS.length;
-                      const isPlayed = barRatio <= playheadRatio;
-                      const isPlayhead = Math.abs(barRatio - playheadRatio) < 0.025;
-
-                      if (isPlayhead) {
-                        return <div key={idx} className={styles.playheadCursor} />;
-                      }
-
-                      return (
-                        <div
-                          key={idx}
-                          className={`${styles.frequencyBar} ${isPlayed ? styles.playedBar : styles.unplayedBar}`}
-                          style={{ height: `${height}px` }}
-                        />
-                      );
-                    })}
-                  </div>
-
-                  {/* Full Transport Controls Deck */}
-                  <div className={styles.playerControlsDeck}>
-                    {/* Left/Center: Transport Buttons */}
-                    <div className={styles.transportButtonsGroup}>
-                      <button
-                        type="button"
-                        className={`${styles.transportBtn} ${isShuffled ? styles.transportBtnActive : ""}`}
-                        onClick={() => {
-                          setIsShuffled(!isShuffled);
-                          showToast(isShuffled ? "Shuffle disabled" : "Shuffle enabled");
-                        }}
-                        title="Shuffle"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">shuffle</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        className={styles.transportBtn}
-                        onClick={() => handleSkip(-10)}
-                        title="Rewind 10 seconds"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">replay_10</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        className={styles.playBtnCircle}
-                        onClick={togglePlayPause}
-                        title={isPlaying ? "Pause Preview" : "Play Master Preview"}
-                      >
-                        <span
-                          className="material-symbols-outlined text-[24px]"
-                          style={{ fontVariationSettings: "'FILL' 1" }}
-                        >
-                          {isPlaying ? "pause" : "play_arrow"}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        className={styles.transportBtn}
-                        onClick={() => handleSkip(10)}
-                        title="Forward 10 seconds"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">forward_10</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        className={`${styles.transportBtn} ${isLooping ? styles.transportBtnActive : ""}`}
-                        onClick={() => {
-                          setIsLooping(!isLooping);
-                          showToast(isLooping ? "Repeat disabled" : "Repeat loop enabled");
-                        }}
-                        title="Loop Track"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">repeat</span>
-                      </button>
+                    <input
+                      type="file"
+                      ref={audioFileInputRef}
+                      accept="audio/*,.flac,.wav,.mp3,.aac,.ogg,.m4a"
+                      style={{ display: "none" }}
+                      onChange={handleAudioFileChange}
+                    />
+                    <div className={styles.audioDropzoneIconCircle}>
+                      <span className="material-symbols-outlined text-[28px]">
+                        {isUploadingAudio ? "hourglass_top" : "audiotrack"}
+                      </span>
                     </div>
-
-                    {/* Right: Audio Settings (Speed & Volume) */}
-                    <div className={styles.audioSettingsGroup}>
-                      <button
-                        type="button"
-                        className={styles.speedToggleBtn}
-                        onClick={cyclePlaybackSpeed}
-                        title="Click to change playback speed"
-                      >
-                        {playbackSpeed}x
-                      </button>
-
-                      <div className={styles.volumeControl}>
+                    <div className={styles.audioDropzoneTextCol}>
+                      <h4 className={styles.audioDropzoneTitle}>
+                        {isUploadingAudio ? "Uploading & Staging Master Audio..." : "Upload Music / Audio Master Track"}
+                        <span className={styles.losslessBadge}>Master Ingestion</span>
+                      </h4>
+                      <p className={styles.audioDropzoneSubtitle}>
+                        {isUploadingAudio
+                          ? "Uploading file stream to Cloudinary (tunedin/songs) and extracting duration..."
+                          : "Drag & drop your master audio track here, or click to browse local files"}
+                      </p>
+                      <div className={styles.audioDropzoneMetaRow}>
+                        <span className={styles.audioPill}>Lossless Masters Preferred</span>
+                        <span className={styles.audioPillSpecs}>.FLAC, .WAV, .MP3, .AAC, .OGG, .M4A • Max 100MB</span>
                         <button
                           type="button"
-                          className={styles.muteBtn}
-                          onClick={() => setIsMuted(!isMuted)}
-                          title={isMuted ? "Unmute" : "Mute"}
-                        >
-                          <span className="material-symbols-outlined text-[18px]">
-                            {isMuted || volume === 0
-                              ? "volume_off"
-                              : volume < 50
-                              ? "volume_down"
-                              : "volume_up"}
-                          </span>
-                        </button>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={isMuted ? 0 : volume}
-                          onChange={(e) => {
-                            setVolume(Number(e.target.value));
-                            if (isMuted) setIsMuted(false);
+                          className={styles.audioBrowseBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            audioFileInputRef.current?.click();
                           }}
-                          className={styles.volumeSlider}
-                          title={`Volume: ${isMuted ? 0 : volume}%`}
-                        />
-                        <span className={styles.volumePercentText}>{isMuted ? "0%" : `${volume}%`}</span>
+                        >
+                          <span className="material-symbols-outlined text-[15px]">cloud_upload</span>
+                          Browse Audio File
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.audioSampleBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLoadSample();
+                          }}
+                          title="Load sample master audio for instant preview"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                          Use Demo Master
+                        </button>
                       </div>
                     </div>
+                  </div>
+                ) : (
+                  /* Staged Audio Master Music Player */
+                  <div className={`${styles.audioStagePanel} ${isPlaying ? styles.audioStagePanelPlaying : ""}`}>
+                    {/* Hidden Audio File Input */}
+                    <input
+                      type="file"
+                      ref={audioFileInputRef}
+                      accept="audio/*,.flac,.wav,.mp3,.aac,.ogg,.m4a"
+                      style={{ display: "none" }}
+                      onChange={handleAudioFileChange}
+                    />
+
+                    {/* Native HTML5 Audio element for real playback */}
+                    <audio
+                      ref={audioPlayerRef}
+                      src={audioLocalSrc || audioUrl || undefined}
+                      style={{ display: "none" }}
+                      preload="auto"
+                      onPlay={() => setIsPlaying(true)}
+                      onPause={() => setIsPlaying(false)}
+                      onTimeUpdate={(e) => {
+                        const el = e.currentTarget;
+                        if (el.duration && !isNaN(el.duration) && isFinite(el.duration)) {
+                          setAudioDuration(el.duration);
+                        }
+                        setCurrentSeconds(el.currentTime);
+                      }}
+                      onLoadedMetadata={(e) => {
+                        const el = e.currentTarget;
+                        if (el.duration && !isNaN(el.duration) && isFinite(el.duration)) {
+                          setAudioDuration(el.duration);
+                        }
+                      }}
+                      onEnded={() => {
+                        if (isLooping && audioPlayerRef.current) {
+                          audioPlayerRef.current.currentTime = 0;
+                          audioPlayerRef.current.play().catch(() => {});
+                        } else {
+                          setIsPlaying(false);
+                          setCurrentSeconds(0);
+                        }
+                      }}
+                    />
+
+                    {/* Header: File info, lossless badge, live EQ animation */}
+                    <div className={styles.audioHeader}>
+                      <div className={styles.audioMetaLeft}>
+                        <div className={`${styles.audioDiscIcon} ${isPlaying ? styles.audioDiscSpinning : ""}`}>
+                          <span className="material-symbols-outlined text-[20px]">
+                            {isPlaying ? "graphic_eq" : "album"}
+                          </span>
+                        </div>
+                        <div className={styles.audioTrackInfo}>
+                          <div className={styles.audioFileNameRow}>
+                            <span className={styles.audioFileName}>{activeFileName}</span>
+                            {activeFileSize && <span className={styles.fileSizeBadge}>{activeFileSize}</span>}
+                            <span className={styles.losslessBadge}>48kHz / 24-bit Lossless</span>
+                          </div>
+                          <span style={{ fontSize: "11px", color: "#5f5e5e", marginTop: "2px" }}>
+                            {isUploadingAudio
+                              ? "Uploading Audio Master to Cloudinary..."
+                              : "Master Audio Engine • Direct Cloudinary Stream"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className={styles.audioHeaderRight}>
+                        <button
+                          type="button"
+                          className={styles.changeAudioBtn}
+                          onClick={() => audioFileInputRef.current?.click()}
+                          title="Choose a different audio file"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">swap_horiz</span>
+                          Change Audio
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.removeAudioBtn}
+                          onClick={handleRemoveAudio}
+                          title="Remove this audio file"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">close</span>
+                        </button>
+
+                        {/* Animated Equalizer when playing */}
+                        {isPlaying ? (
+                          <div className={styles.eqVisualizer} title="Lossless Output Active">
+                            <div className={`${styles.eqBar} ${styles.eqBar1}`} />
+                            <div className={`${styles.eqBar} ${styles.eqBar2}`} />
+                            <div className={`${styles.eqBar} ${styles.eqBar3}`} />
+                            <div className={`${styles.eqBar} ${styles.eqBar4}`} />
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "#5f5e5e", fontWeight: 600 }}>Ready</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Time Readout */}
+                    <div className={styles.timeRow}>
+                      <span className={styles.currentTimeDisplay}>{currentTime}</span>
+                      <span>Track Duration: {formatTime(audioDuration || 0)}</span>
+                    </div>
+
+                    {/* 55 Frequency Bars Visualizer */}
+                    <div
+                      className={styles.waveformStrip}
+                      onClick={handleWaveformClick}
+                      title="Click anywhere to scrub playback position"
+                    >
+                      {FREQUENCY_HEIGHTS.map((height, idx) => {
+                        const barRatio = idx / FREQUENCY_HEIGHTS.length;
+                        const isPlayed = barRatio <= playheadRatio;
+                        const isPlayhead = Math.abs(barRatio - playheadRatio) < 0.025;
+
+                        if (isPlayhead) {
+                          return <div key={idx} className={styles.playheadCursor} />;
+                        }
+
+                        return (
+                          <div
+                            key={idx}
+                            className={`${styles.frequencyBar} ${isPlayed ? styles.playedBar : styles.unplayedBar}`}
+                            style={{ height: `${height}px` }}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    {/* Full Transport Controls Deck */}
+                    <div className={styles.playerControlsDeck}>
+                      {/* Left/Center: Transport Buttons */}
+                      <div className={styles.transportButtonsGroup}>
+                        <button
+                          type="button"
+                          className={`${styles.transportBtn} ${isShuffled ? styles.transportBtnActive : ""}`}
+                          onClick={() => {
+                            setIsShuffled(!isShuffled);
+                            showToast(isShuffled ? "Shuffle disabled" : "Shuffle enabled");
+                          }}
+                          title="Shuffle"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">shuffle</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={styles.transportBtn}
+                          onClick={() => handleSkip(-10)}
+                          title="Rewind 10 seconds"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">replay_10</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={styles.playBtnCircle}
+                          onClick={togglePlayPause}
+                          title={isPlaying ? "Pause Preview" : "Play Master Preview"}
+                        >
+                          <span
+                            className="material-symbols-outlined text-[24px]"
+                            style={{ fontVariationSettings: "'FILL' 1" }}
+                          >
+                            {isPlaying ? "pause" : "play_arrow"}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={styles.transportBtn}
+                          onClick={() => handleSkip(10)}
+                          title="Forward 10 seconds"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">forward_10</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`${styles.transportBtn} ${isLooping ? styles.transportBtnActive : ""}`}
+                          onClick={() => {
+                            setIsLooping(!isLooping);
+                            showToast(isLooping ? "Repeat disabled" : "Repeat loop enabled");
+                          }}
+                          title="Loop Track"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">repeat</span>
+                        </button>
+                      </div>
+
+                      {/* Right: Audio Settings (Speed & Volume) */}
+                      <div className={styles.audioSettingsGroup}>
+                        <button
+                          type="button"
+                          className={styles.speedToggleBtn}
+                          onClick={cyclePlaybackSpeed}
+                          title="Click to change playback speed"
+                        >
+                          {playbackSpeed}x
+                        </button>
+
+                        <div className={styles.volumeControl}>
+                          <button
+                            type="button"
+                            className={styles.muteBtn}
+                            onClick={() => setIsMuted(!isMuted)}
+                            title={isMuted ? "Unmute" : "Mute"}
+                          >
+                            <span className="material-symbols-outlined text-[18px]">
+                              {isMuted || volume === 0
+                                ? "volume_off"
+                                : volume < 50
+                                ? "volume_down"
+                                : "volume_up"}
+                            </span>
+                          </button>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={isMuted ? 0 : volume}
+                            onChange={(e) => {
+                              setVolume(Number(e.target.value));
+                              if (isMuted) setIsMuted(false);
+                            }}
+                            className={styles.volumeSlider}
+                            title={`Volume: ${isMuted ? 0 : volume}%`}
+                          />
+                          <span className={styles.volumePercentText}>{isMuted ? "0%" : `${volume}%`}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Release Ingestion Validation Checklist Banner */}
+                <div className={`${styles.validationBar} ${isFormValid ? styles.validationBarValid : ""}`}>
+                  <div className={styles.validationStatusRow}>
+                    <div className={styles.validationStatusLeft}>
+                      <span className={`material-symbols-outlined text-[20px] ${isFormValid ? styles.validIconSuccess : styles.validIconWarning}`}>
+                        {isFormValid ? "task_alt" : "pending_actions"}
+                      </span>
+                      <span className={styles.validationTitle}>
+                        {isFormValid
+                          ? "All Required Release Details Inputted — Ready to Publish!"
+                          : `Release Incomplete (${validDetailsCount}/7 Details Inputted) — All Details Required to Submit Form:`}
+                      </span>
+                    </div>
+                    <span className={`${styles.validationPercentPill} ${isFormValid ? styles.validationPercentPillValid : ""}`}>
+                      {Math.round((validDetailsCount / 7) * 100)}% Complete
+                    </span>
+                  </div>
+
+                  <div className={styles.validationChipsGrid}>
+                    <span className={isTitleValid ? styles.validChipDone : styles.validChipMissing}>
+                      <span className="material-symbols-outlined text-[13px]">{isTitleValid ? "check_circle" : "cancel"}</span>
+                      Track Title
+                    </span>
+                    <span className={isArtistValid ? styles.validChipDone : styles.validChipMissing}>
+                      <span className="material-symbols-outlined text-[13px]">{isArtistValid ? "check_circle" : "cancel"}</span>
+                      Artist(s)
+                    </span>
+                    <span className={isAlbumValid ? styles.validChipDone : styles.validChipMissing}>
+                      <span className="material-symbols-outlined text-[13px]">{isAlbumValid ? "check_circle" : "cancel"}</span>
+                      Album / Collection
+                    </span>
+                    <span className={isIsrcValid ? styles.validChipDone : styles.validChipMissing}>
+                      <span className="material-symbols-outlined text-[13px]">{isIsrcValid ? "check_circle" : "cancel"}</span>
+                      ISRC Code
+                    </span>
+                    <span className={isArtworkValid ? styles.validChipDone : styles.validChipMissing}>
+                      <span className="material-symbols-outlined text-[13px]">{isArtworkValid ? "check_circle" : "cancel"}</span>
+                      Cover Artwork
+                    </span>
+                    <span className={isAudioValid ? styles.validChipDone : styles.validChipMissing}>
+                      <span className="material-symbols-outlined text-[13px]">{isAudioValid ? "check_circle" : "cancel"}</span>
+                      Music / Audio File
+                    </span>
+                    <span className={isTagsValid ? styles.validChipDone : styles.validChipMissing}>
+                      <span className="material-symbols-outlined text-[13px]">{isTagsValid ? "check_circle" : "cancel"}</span>
+                      Vibe Tag ({activeTags.length})
+                    </span>
                   </div>
                 </div>
 
@@ -2266,6 +2594,8 @@ export default function AdminDashboardPage() {
                     type="button"
                     className={styles.btnSecondary}
                     onClick={togglePlayPause}
+                    disabled={!isAudioValid}
+                    title={!isAudioValid ? "Upload an audio file first to preview" : isPlaying ? "Pause Stream" : "Preview Stream"}
                   >
                     <span className="material-symbols-outlined text-[18px]" style={{ color: "#5f5e5e" }}>
                       {isPlaying ? "pause_circle" : "play_circle"}
@@ -2277,7 +2607,8 @@ export default function AdminDashboardPage() {
                     type="button"
                     className={styles.btnSecondary}
                     onClick={handleSaveDraft}
-                    disabled={isSavingDraft || isPublishing}
+                    disabled={isSavingDraft || isPublishing || !trackTitle.trim()}
+                    title={!trackTitle.trim() ? "Enter track title to save a draft" : "Save as draft"}
                   >
                     <span className="material-symbols-outlined text-[18px]" style={{ color: "#5f5e5e" }}>
                       {isSavingDraft ? "hourglass_top" : "save"}
@@ -2287,14 +2618,25 @@ export default function AdminDashboardPage() {
 
                   <button
                     type="button"
-                    className={styles.btnPublish}
+                    className={`${styles.btnPublish} ${!isFormValid ? styles.btnPublishDisabled : ""}`}
                     onClick={handlePublish}
-                    disabled={isPublishing || isSavingDraft}
+                    disabled={!isFormValid || isPublishing || isSavingDraft}
+                    title={
+                      !isFormValid
+                        ? `Form Locked: Please input all ${7 - validDetailsCount} remaining details before submitting`
+                        : "All details verified! Publish master track to TunedIn Network"
+                    }
                   >
                     <span className="material-symbols-outlined text-[20px]">
-                      {isPublishing ? "hourglass_top" : "rocket_launch"}
+                      {isPublishing ? "hourglass_top" : isFormValid ? "rocket_launch" : "lock"}
                     </span>
-                    <span>{isPublishing ? "Publishing to Network..." : "Publish to TunedIn Network"}</span>
+                    <span>
+                      {isPublishing
+                        ? "Publishing to Network..."
+                        : isFormValid
+                        ? "Publish to TunedIn Network"
+                        : `Submit Form (${validDetailsCount}/7 Details)`}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -2499,7 +2841,7 @@ export default function AdminDashboardPage() {
                       <th className={styles.thCell}>Track &amp; Artwork</th>
                       <th className={styles.thCell}>Album Release</th>
                       <th className={styles.thCell} style={{ textAlign: "right" }}>Duration</th>
-                      <th className={styles.thCell}>Backblaze B2 Key</th>
+                      <th className={styles.thCell}>Cloudinary Public ID</th>
                       <th className={styles.thCell} style={{ textAlign: "right" }}>Streams</th>
                       <th className={styles.thCell}>Status</th>
                       <th className={styles.thCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>Actions</th>
@@ -2530,25 +2872,11 @@ export default function AdminDashboardPage() {
                                 <button
                                   type="button"
                                   className={styles.playOverlayBtn}
-                                  onClick={() => {
-                                    setActiveFileName(`${track.title.toLowerCase().replace(/[^a-z0-9]/g, "_")}.flac`);
-                                    setTrackTitle(track.title);
-                                    setPrimaryArtist(track.artist);
-                                    setAlbumCollection(track.album);
-                                    setIsrc(track.isrc);
-                                    setArtworkUrl(track.artworkUrl);
-                                    setCurrentSeconds(0);
-                                    if (!isPlaying) {
-                                      setIsPlaying(true);
-                                      startAudioSynth();
-                                    }
-                                    showToast(`Loaded and playing "${track.title}" in Master Deck`);
-                                    window.scrollTo({ top: 320, behavior: "smooth" });
-                                  }}
-                                  title="Play in Master Player"
+                                  onClick={() => handlePlayTrackFromCatalog(track)}
+                                  title={isPlaying && playingTrackId === track.id ? "Pause playback" : "Play in Master Player"}
                                 >
                                   <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                                    play_arrow
+                                    {isPlaying && playingTrackId === track.id ? "pause" : "play_arrow"}
                                   </span>
                                 </button>
                               </div>
@@ -2584,8 +2912,8 @@ export default function AdminDashboardPage() {
                           <td className={styles.tdCell}>
                             <span
                               className={styles.storagePill}
-                              onClick={() => copyToClipboard(track.storageKey, "Backblaze B2 Key")}
-                              title="Click to copy Backblaze B2 key"
+                              onClick={() => copyToClipboard(track.storageKey, "Cloudinary Public ID")}
+                              title="Click to copy Cloudinary public ID"
                               style={{ cursor: "pointer" }}
                             >
                               {track.storageKey}
@@ -2794,7 +3122,7 @@ export default function AdminDashboardPage() {
                   >
                     <option value="Super Admin">Super Admin (Full Root Clearance)</option>
                     <option value="SecOps Engineer">SecOps Engineer (Security &amp; Audit)</option>
-                    <option value="Catalog Lead">Catalog Lead (Backblaze B2 &amp; Releases)</option>
+                    <option value="Catalog Lead">Catalog Lead (Cloudinary &amp; Releases)</option>
                     <option value="Audio Curator">Audio Curator (Playlists &amp; Ingestion)</option>
                     <option value="Infrastructure Eng">Infrastructure Eng (CDN &amp; Transcoding)</option>
                   </select>

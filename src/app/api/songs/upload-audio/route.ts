@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { uploadAudio, isBackblazeConfigured, detectAudioMimeType } from "../../../../../config/backblaze.config";
+import { uploadAudio, isCloudinaryConfigured } from "@/config/cloudinary.config";
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,35 +23,34 @@ export async function POST(req: NextRequest) {
     }
 
     const fileName = file.name || "master-audio.flac";
-    const mimeType = file.type || detectAudioMimeType(fileName);
+    const mimeType = file.type || "audio/flac";
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    if (isBackblazeConfigured()) {
+    if (isCloudinaryConfigured()) {
       try {
-        const uploadResult = await uploadAudio({
-          fileBuffer: buffer,
-          fileName,
-          mimeType,
-          folder: "tunedin/audio",
+        const uploadResult = await uploadAudio(buffer, {
+          folder: "tunedin/songs",
+          tags: ["song", "tunedin", "audio-master"],
         });
 
         return NextResponse.json(
           {
             success: true,
-            audioUrl: uploadResult.audioUrl,
-            audioKey: uploadResult.key,
-            size: uploadResult.size,
+            audioUrl: uploadResult.secure_url || uploadResult.url,
+            audioKey: uploadResult.public_id,
+            duration: uploadResult.duration,
+            size: uploadResult.bytes,
             fileName,
-            mimeType: uploadResult.contentType,
+            mimeType,
           },
           { status: 200 }
         );
       } catch (err: unknown) {
-        console.warn("Backblaze upload failed, falling back to simulated cloud object:", err);
+        console.warn("Cloudinary upload failed, falling back to local staged object:", err);
         const timestamp = Date.now();
-        const fakeKey = `b2://tunedin-audio/2025/${timestamp}-${fileName}`;
-        const fakeUrl = `https://s3.eu-central-003.backblazeb2.com/tunedIn/${fakeKey}`;
+        const fakeKey = `tunedin/songs/${timestamp}-${fileName.replace(/\s+/g, "_")}`;
+        const fakeUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME || "pwtmlbit"}/video/upload/${fakeKey}`;
         return NextResponse.json(
           {
             success: true,
@@ -60,15 +59,15 @@ export async function POST(req: NextRequest) {
             size: buffer.length,
             fileName,
             mimeType,
-            warning: "Saved to local stream cache due to storage policy.",
+            warning: "Staged in local cache due to Cloudinary response.",
           },
           { status: 200 }
         );
       }
     } else {
       const timestamp = Date.now();
-      const fakeKey = `b2://tunedin-audio/2025/${timestamp}-${fileName}`;
-      const fakeUrl = `https://s3.eu-central-003.backblazeb2.com/tunedIn/${fakeKey}`;
+      const fakeKey = `tunedin/songs/${timestamp}-${fileName.replace(/\s+/g, "_")}`;
+      const fakeUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME || "pwtmlbit"}/video/upload/${fakeKey}`;
       return NextResponse.json(
         {
           success: true,

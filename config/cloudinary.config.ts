@@ -150,25 +150,110 @@ export async function deletePoster(publicId: string): Promise<{ result: string }
   return response;
 }
 
+export interface AudioUploadOptions {
+  /** Target folder in Cloudinary (defaults to 'tunedin/songs') */
+  folder?: string;
+  /** Custom public ID (auto-generated if omitted) */
+  publicId?: string;
+  /** Custom tags for filtering/organizing */
+  tags?: string[];
+  /** Original file name */
+  filename?: string;
+}
+
+export interface AudioUploadResult {
+  url: string;
+  secure_url: string;
+  public_id: string;
+  format: string;
+  duration?: number;
+  bytes: number;
+  created_at: string;
+}
+
 /**
- * Helper to generate an optimized delivery URL for a poster
+ * Upload a song or master audio file to Cloudinary.
+ * Accepts a file path, base64 data URI, remote URL, or a Buffer.
+ * Files are stored in the 'tunedin/songs' folder as resource_type 'video'.
+ *
+ * @param file - File path, base64 data URI, remote URL, or Buffer
+ * @param options - Upload configuration options
+ * @returns Promise<AudioUploadResult>
  */
-export function getOptimizedPosterUrl(
-  publicId: string,
-  transformations?: { width?: number; height?: number; quality?: string | number }
-): string {
-  return cloudinary.url(publicId, {
-    secure: true,
-    transformation: [
-      {
-        width: transformations?.width || 600,
-        height: transformations?.height || 600,
-        crop: "fill",
-        fetch_format: "auto",
-        quality: transformations?.quality || "auto",
-      },
-    ],
+export async function uploadAudio(
+  file: string | Buffer,
+  options: AudioUploadOptions = {}
+): Promise<AudioUploadResult> {
+  if (!isCloudinaryConfigured()) {
+    throw new Error(
+      "Cloudinary is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in your environment variables."
+    );
+  }
+
+  const folder = options.folder || process.env.CLOUDINARY_SONGS_FOLDER || "tunedin/songs";
+
+  const uploadParams: Record<string, unknown> = {
+    folder,
+    resource_type: "video", // In Cloudinary, audio files (FLAC, MP3, WAV, etc.) use resource_type "video"
+    tags: options.tags || ["song", "audio", "tunedin"],
+  };
+
+  if (options.publicId) {
+    uploadParams.public_id = options.publicId;
+  }
+
+  if (Buffer.isBuffer(file)) {
+    return new Promise<AudioUploadResult>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        uploadParams,
+        (error: UploadApiErrorResponse | undefined, result: UploadApiResponse | undefined) => {
+          if (error || !result) {
+            reject(error || new Error("Cloudinary audio upload failed: No result returned"));
+          } else {
+            resolve({
+              url: result.url,
+              secure_url: result.secure_url,
+              public_id: result.public_id,
+              format: result.format,
+              duration: result.duration,
+              bytes: result.bytes,
+              created_at: result.created_at,
+            });
+          }
+        }
+      );
+      uploadStream.end(file);
+    });
+  }
+
+  const result = await cloudinary.uploader.upload(file, uploadParams);
+
+  return {
+    url: result.url,
+    secure_url: result.secure_url,
+    public_id: result.public_id,
+    format: result.format,
+    duration: result.duration,
+    bytes: result.bytes,
+    created_at: result.created_at,
+  };
+}
+
+/**
+ * Delete a song audio file from Cloudinary by its public ID.
+ *
+ * @param publicId - The Cloudinary public ID of the audio file
+ */
+export async function deleteAudio(publicId: string): Promise<{ result: string }> {
+  if (!isCloudinaryConfigured()) {
+    throw new Error("Cloudinary is not configured in environment variables.");
+  }
+
+  const response = await cloudinary.uploader.destroy(publicId, {
+    resource_type: "video",
   });
+
+  return response;
 }
 
 export interface CloudinaryUsageStats {

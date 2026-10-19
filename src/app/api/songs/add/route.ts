@@ -108,10 +108,10 @@ export async function POST(req: NextRequest) {
 
     const finalAudioId =
       (audio_Id && String(audio_Id).trim()) ||
-      `b2://tunedin-audio/2025/tr-${Math.floor(1000 + Math.random() * 9000)}.flac`;
+      `tunedin/songs/tr-${Math.floor(1000 + Math.random() * 9000)}`;
     const finalAudioUrl =
       (audio_url && String(audio_url).trim()) ||
-      `https://s3.eu-central-003.backblazeb2.com/tunedin/masters/tr-${timestamp}.flac`;
+      `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME || "pwtmlbit"}/video/upload/tunedin/songs/tr-${timestamp}.mp3`;
 
     const parsedDuration =
       typeof duration === "number" && duration > 0 ? duration : 278; // Default ~04:38

@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       poster_url: body.poster_url || "",
       poster_Id: body.poster_Id || `poster_${Date.now()}`,
       audio_url: body.audio_url || "",
-      audio_Id: body.audio_Id || `b2://tunedin-audio/2025/tr-${Date.now()}.flac`,
+      audio_Id: body.audio_Id || `tunedin/songs/tr-${Date.now()}`,
       duration: Number(body.duration) || 180,
       genre: Array.isArray(body.genre) ? body.genre : [body.genre || "Electronic"],
       uploadUser: body.uploadUser || user._id,
