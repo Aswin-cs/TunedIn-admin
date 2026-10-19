@@ -31,16 +31,31 @@ export const authOptions: NextAuthOptions = {
         let existingUser = await User.findOne({ email });
 
         if (!existingUser) {
-          if (!pendingUsername) {
-            // Deny sign-in until username is provided on /login form
-            return `/login?error=UsernameRequired`;
+          let chosenUsername = pendingUsername;
+          if (!chosenUsername) {
+            // Generate clean unique username from user.name or email prefix
+            const rawBase = (user.name || email.split("@")[0])
+              .toLowerCase()
+              .replace(/[^a-z0-9_]/g, "_")
+              .replace(/^_+|_+$/g, "")
+              .slice(0, 14);
+            const baseUsername = rawBase.length >= 3 ? rawBase : "admin";
+
+            let candidate = baseUsername;
+            let counter = 1;
+            while (await User.findOne({ username: candidate })) {
+              candidate = `${baseUsername.slice(0, 12)}_${Math.floor(100 + Math.random() * 900)}`;
+              counter++;
+              if (counter > 10) break;
+            }
+            chosenUsername = candidate;
           }
 
-          // Create new user using username from form and verified email from Google OAuth
+          // Create new user using username from form or derived, and verified email from Google OAuth
           existingUser = await User.create({
-            username: pendingUsername,
+            username: chosenUsername,
             email,
-            role: "subadmin", // Default role per models/user.model.ts (lines 12-16 excluded from form)
+            role: "subadmin", // Default role per models/user.model.ts
             verified: false,
             createdAt: new Date(),
             updatedAt: new Date(),

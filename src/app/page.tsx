@@ -20,6 +20,7 @@ interface CatalogTrack {
   isrc: string;
   artworkUrl: string;
   category: "all" | "processing" | "drafts";
+  rawSong?: any;
 }
 
 export type AdminRole =
@@ -281,6 +282,17 @@ export default function AdminDashboardPage() {
 
   // Catalog Table State
   const [tracks, setTracks] = useState<CatalogTrack[]>(INITIAL_TRACKS);
+  const [rawSongs, setRawSongs] = useState<any[]>([]);
+  const [trackCounts, setTrackCounts] = useState({
+    all: 1248,
+    pending: 4,
+    drafts: 18,
+    verified: 1240,
+  });
+  const [isLoadingTracks, setIsLoadingTracks] = useState(false);
+  const [showRawJsonModal, setShowRawJsonModal] = useState(false);
+  const [inspectingSong, setInspectingSong] = useState<any | null>(null);
+
   const [activeTab, setActiveTab] = useState<"all" | "processing" | "drafts">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -302,6 +314,81 @@ export default function AdminDashboardPage() {
     dbSnapshots: true,
     maintenanceMode: false,
   });
+
+  // Fetch Raw Songs from MongoDB Song model API route
+  const fetchCatalogSongs = async () => {
+    setIsLoadingTracks(true);
+    try {
+      const res = await fetch("/api/songs");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.songs)) {
+          setRawSongs(data.songs);
+          if (data.counts) {
+            setTrackCounts(data.counts);
+          }
+          const mapped: CatalogTrack[] = data.songs.map((song: any) => {
+            const durSec = typeof song.duration === "number" ? song.duration : 0;
+            const mins = Math.floor(durSec / 60);
+            const secs = Math.floor(durSec % 60);
+            const durFormatted = `${mins < 10 ? "0" : ""}${mins}:${secs < 10 ? "0" : ""}${secs}`;
+
+            const isLive = song.verificationStatus === "verified";
+            const isPending = song.verificationStatus === "pending";
+            const status: "live" | "processing" | "draft" = isLive
+              ? "live"
+              : isPending
+              ? "processing"
+              : "draft";
+            const statusText = isLive
+              ? "Live"
+              : isPending
+              ? "Processing 84%"
+              : "Draft";
+            const category: "all" | "processing" | "drafts" = isPending
+              ? "processing"
+              : isLive
+              ? "all"
+              : "drafts";
+
+            const artistText = Array.isArray(song.artist)
+              ? song.artist.join(" & ")
+              : song.artist || "Unknown Artist";
+            const streamsText =
+              typeof song.plays === "number" ? song.plays.toLocaleString() : "0";
+            const isrcText =
+              song.aiObservation?.isrc ||
+              `US-TUN-25-${(song._id || "").toString().slice(-5).toUpperCase()}`;
+
+            return {
+              id: song._id?.toString() || `tr-${Date.now()}`,
+              title: song.title,
+              artist: artistText,
+              album: song.album,
+              duration: durFormatted,
+              storageKey:
+                song.audio_Id || song.audio_url || "b2://tunedin-audio/2025/master.flac",
+              streams: streamsText,
+              status,
+              statusText,
+              editionBadge: song.aiObservation?.badge || undefined,
+              isrc: isrcText,
+              artworkUrl:
+                song.poster_url ||
+                "https://lh3.googleusercontent.com/aida-public/AB6AXuDMahkNExERLuA_PCTQN9pyuiAwa9vKRWI4nmxTwOP0Be-6MnX6CDbEnxtkwAJf2WLYWWuDk0iMO1I5H_SaLbR2ZAJJGpBeZ4orUW6KELkwMm3SCpLm_QgnvgxT-4k4kbCY8oDOUTrc2L10DHfRW10sfwmxIpsRgqTTE9f28dQ9t4nmXKj26ElmRMoShspWoMIGzL6vb27H2-BAvLZMoPr2JG64VnO8Vs3CZcJ1lMoHl8iyoPAsAthW",
+              category,
+              rawSong: song,
+            };
+          });
+          setTracks(mapped);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch catalog tracks from /api/songs:", err);
+    } finally {
+      setIsLoadingTracks(false);
+    }
+  };
 
   // Live Storage Metrics State (Exact details from config/backblaze and config/cloudinary)
   const [liveStorage, setLiveStorage] = useState<{
@@ -350,6 +437,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     fetchLiveStorage();
+    fetchCatalogSongs();
   }, []);
 
   // Admin Invite Modal State
@@ -497,9 +585,9 @@ export default function AdminDashboardPage() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchLiveStorage();
+    await Promise.all([fetchLiveStorage(), fetchCatalogSongs()]);
     setIsRefreshing(false);
-    showToast("Live storage metrics updated from Backblaze B2 & Cloudinary.");
+    showToast("Live storage metrics and MongoDB catalog tracks updated.");
   };
 
   // Audio Playback & Music Player State
@@ -697,29 +785,56 @@ export default function AdminDashboardPage() {
     showToast(`Draft for "${trackTitle}" saved to cloud cache.`);
   };
 
-  const handlePublish = () => {
-    const newTrack: CatalogTrack = {
-      id: `tr-${Date.now()}`,
-      title: trackTitle,
-      artist: primaryArtist,
-      album: albumCollection,
-      duration: "04:38",
-      storageKey: `b2://tunedin-audio/2025/tr-${Math.floor(1000 + Math.random() * 9000)}.flac`,
-      streams: "0",
-      status: "live",
-      statusText: "Live",
-      editionBadge: "NEW",
-      isrc: isrc,
-      artworkUrl: artworkUrl,
-      category: "all",
-    };
-    setTracks([newTrack, ...tracks]);
-    showToast(`Master "${trackTitle}" published to TunedIn Network!`);
+  const handlePublish = async () => {
+    try {
+      const res = await fetch("/api/songs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: trackTitle,
+          artist: [primaryArtist],
+          album: albumCollection,
+          duration: 278,
+          audio_url: "https://s3.eu-central-003.backblazeb2.com/tunedin/masters/audio.flac",
+          audio_Id: `b2://tunedin-audio/2025/tr-${Math.floor(1000 + Math.random() * 9000)}.flac`,
+          poster_url: artworkUrl,
+          poster_Id: `poster_${Date.now()}`,
+          genre: activeTags,
+          plays: 0,
+          likes: 0,
+          aiObservation: { badge: "NEW", isrc },
+          verificationStatus: "verified",
+          verified: true,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchCatalogSongs();
+        showToast(`Master "${trackTitle}" published to MongoDB catalog!`);
+      } else {
+        showToast(data.error || "Failed to publish master track.");
+      }
+    } catch {
+      showToast("Error connecting to catalog API.");
+    }
   };
 
-  const handleDeleteTrack = (id: string, name: string) => {
-    setTracks(tracks.filter((t) => t.id !== id));
-    showToast(`Archived "${name}" from catalog.`);
+  const handleDeleteTrack = async (id: string, name: string) => {
+    try {
+      const res = await fetch(`/api/songs?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setTracks((prev) => prev.filter((t) => t.id !== id));
+        showToast(`Archived "${name}" from MongoDB catalog.`);
+        fetchCatalogSongs();
+      } else {
+        setTracks((prev) => prev.filter((t) => t.id !== id));
+        showToast(`Archived "${name}" from local view.`);
+      }
+    } catch {
+      setTracks((prev) => prev.filter((t) => t.id !== id));
+      showToast(`Archived "${name}" from catalog.`);
+    }
   };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2071,7 +2186,7 @@ export default function AdminDashboardPage() {
                 >
                   All Tracks
                   <span className={styles.tabCountPill}>
-                    {tracks.length > 5 ? tracks.length : "1,248"}
+                    {trackCounts.all.toLocaleString()}
                   </span>
                 </button>
 
@@ -2081,7 +2196,7 @@ export default function AdminDashboardPage() {
                   onClick={() => setActiveTab("processing")}
                 >
                   Pending Transcode
-                  <span className={styles.tabCountPill}>4</span>
+                  <span className={styles.tabCountPill}>{trackCounts.pending}</span>
                 </button>
 
                 <button
@@ -2090,7 +2205,7 @@ export default function AdminDashboardPage() {
                   onClick={() => setActiveTab("drafts")}
                 >
                   Drafts
-                  <span className={styles.tabCountPillAlt}>18</span>
+                  <span className={styles.tabCountPillAlt}>{trackCounts.drafts}</span>
                 </button>
               </div>
 
@@ -2115,8 +2230,38 @@ export default function AdminDashboardPage() {
                 <button
                   type="button"
                   className={styles.exportBtn}
-                  onClick={() => showToast("Exporting catalog metadata to CSV/JSON format...")}
-                  title="Export CSV / JSON"
+                  onClick={() => {
+                    setInspectingSong(null);
+                    setShowRawJsonModal(true);
+                  }}
+                  title="Inspect Raw MongoDB Data (song.model.ts)"
+                  style={{
+                    backgroundColor: showRawJsonModal && !inspectingSong ? "#FFF2EB" : "#ffffff",
+                    borderColor: showRawJsonModal && !inspectingSong ? "#A03B00" : "#E6E2DA",
+                    color: showRawJsonModal && !inspectingSong ? "#A03B00" : "#5f5e5e",
+                  }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">data_object</span>
+                  <span>Raw Data ({rawSongs.length || tracks.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={styles.exportBtn}
+                  onClick={() => {
+                    const dataToExport = rawSongs.length > 0 ? rawSongs : tracks;
+                    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], {
+                      type: "application/json",
+                    });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `tunedin-songs-raw-${Date.now()}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showToast("Exported raw MongoDB catalog metadata to JSON format.");
+                  }}
+                  title="Export Raw JSON"
                 >
                   <span className="material-symbols-outlined text-[16px]">file_download</span>
                   <span>Export</span>
@@ -2253,6 +2398,17 @@ export default function AdminDashboardPage() {
                             <button
                               type="button"
                               className={styles.rowActionBtn}
+                              title="Inspect Raw MongoDB Document"
+                              onClick={() => {
+                                setInspectingSong(track.rawSong || track);
+                                setShowRawJsonModal(true);
+                              }}
+                            >
+                              <span className="material-symbols-outlined text-[18px]">data_object</span>
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.rowActionBtn}
                               title="Stream Telemetry"
                               onClick={() => showToast(`Telemetry: ${track.streams} total requests via edge network.`)}
                             >
@@ -2294,9 +2450,14 @@ export default function AdminDashboardPage() {
             {/* Pagination Footer */}
             <div className={styles.paginationFooter}>
               <div className={styles.paginationInfo}>
-                Showing <strong style={{ color: "#1b1c18" }}>1</strong> to{" "}
+                Showing <strong style={{ color: "#1b1c18" }}>{filteredTracks.length > 0 ? 1 : 0}</strong> to{" "}
                 <strong style={{ color: "#1b1c18" }}>{filteredTracks.length}</strong> of{" "}
-                <strong style={{ color: "#1b1c18" }}>1,248</strong> master recordings
+                <strong style={{ color: "#1b1c18" }}>{trackCounts.all.toLocaleString()}</strong> master recordings
+                {isLoadingTracks && (
+                  <span style={{ marginLeft: "8px", fontSize: "12px", color: "#A03B00", fontWeight: 600 }}>
+                    • Syncing with MongoDB...
+                  </span>
+                )}
               </div>
 
               <div className={styles.paginationControls}>
@@ -2437,6 +2598,109 @@ export default function AdminDashboardPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Raw MongoDB Song Data Inspection Modal */}
+      {showRawJsonModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowRawJsonModal(false)}>
+          <div
+            className={styles.modalContent}
+            style={{ maxWidth: "780px", maxHeight: "88vh", display: "flex", flexDirection: "column" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.modalHeader}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "8px",
+                    backgroundColor: "#FFF2EB",
+                    color: "#A03B00",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <span className="material-symbols-outlined text-[20px]">data_object</span>
+                </div>
+                <div>
+                  <h3 className={styles.modalTitle}>
+                    {inspectingSong
+                      ? `Raw Document: ${inspectingSong.title}`
+                      : "MongoDB Catalog Raw Data"}
+                  </h3>
+                  <p className={styles.modalSubtitle}>
+                    Mongoose Schema: <code style={{ color: "#A03B00", fontWeight: 700 }}>Song</code> (models/song.model.ts) •{" "}
+                    {inspectingSong ? "1 document" : `${rawSongs.length || tracks.length} documents fetched via /api/songs`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className={styles.modalCloseBtn}
+                onClick={() => setShowRawJsonModal(false)}
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div
+              style={{
+                padding: "1rem 1.5rem",
+                overflowY: "auto",
+                flex: 1,
+                backgroundColor: "#161614",
+                borderRadius: "8px",
+                margin: "1rem 1.5rem",
+                border: "1px solid #2a2a26",
+              }}
+            >
+              <pre
+                style={{
+                  margin: 0,
+                  fontFamily: "'Space Grotesk', monospace, Consolas",
+                  fontSize: "12px",
+                  lineHeight: "1.5",
+                  color: "#d4d4d0",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {JSON.stringify(
+                  inspectingSong || (rawSongs.length > 0 ? rawSongs : tracks),
+                  null,
+                  2
+                )}
+              </pre>
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => {
+                  const content = JSON.stringify(
+                    inspectingSong || (rawSongs.length > 0 ? rawSongs : tracks),
+                    null,
+                    2
+                  );
+                  copyToClipboard(content, "Raw JSON");
+                }}
+              >
+                <span className="material-symbols-outlined text-[18px]">content_copy</span>
+                <span>Copy JSON</span>
+              </button>
+              <button
+                type="button"
+                className={styles.btnPublish}
+                onClick={() => setShowRawJsonModal(false)}
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -206,34 +206,33 @@ function LoginForm() {
     }
   };
 
+  // Direct Google OAuth Sign In handler (no username pre-requisite)
+  const handleDirectGoogleSignIn = async () => {
+    setErrorMessage(null);
+    setIsOAuthLoading(true);
+    try {
+      const trimmed = username.trim();
+      if (trimmed && isUsernameAvailable) {
+        document.cookie = `pending_admin_username=${encodeURIComponent(
+          trimmed
+        )}; path=/; max-age=900; SameSite=Lax`;
+      }
+      await signIn("google", { callbackUrl: "/" });
+    } catch (err) {
+      console.error("Direct Google OAuth signin failed:", err);
+      setIsOAuthLoading(false);
+      setErrorMessage("Failed to initiate Google OAuth sign-in.");
+    }
+  };
+
   // Handle Google OAuth trigger
   const handleGoogleOAuth = async () => {
     setErrorMessage(null);
-
-    // Enforce condition: must fill valid, available username first before Google OAuth
-    if (!isProfileSaved) {
-      const trimmed = username.trim();
-      const validationResult = usernameSchema.safeParse(trimmed);
-      if (!validationResult.success) {
-        const errorMsg =
-          validationResult.error.issues[0]?.message || "Username is required by models/user.model.ts.";
-        setErrorMessage(`Access denied: ${errorMsg}`);
-        showToast(errorMsg);
-        return;
-      }
-
-      if (!isUsernameAvailable) {
-        setErrorMessage(
-          currentUsernameError || "Access denied: Username is already taken or invalid."
-        );
-        showToast("Please choose an available username first.");
-        return;
-      }
-
-      // If user filled username but hasn't clicked submit yet, save and trigger OAuth
-      const success = await handleSaveProfile(undefined, true);
-      if (!success) return;
-      return;
+    const trimmed = username.trim();
+    if (trimmed && isUsernameAvailable) {
+      document.cookie = `pending_admin_username=${encodeURIComponent(
+        trimmed
+      )}; path=/; max-age=900; SameSite=Lax`;
     }
 
     setIsOAuthLoading(true);
@@ -340,6 +339,82 @@ function LoginForm() {
                   <span>{errorMessage || queryErrorMessage}</span>
                 </div>
               )}
+
+              {/* Primary Direct Google OAuth Sign In Button */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <button
+                  id="direct-google-oauth-btn"
+                  type="button"
+                  className={styles.ssoButton}
+                  onClick={handleDirectGoogleSignIn}
+                  disabled={isOAuthLoading || isSubmitting}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1.5px solid #dae2fd",
+                    boxShadow: "0 2px 8px rgba(19, 27, 46, 0.08)",
+                  }}
+                >
+                  {isOAuthLoading ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <svg
+                        className={styles.spinnerSvg}
+                        style={{ width: 18, height: 18, color: "#4285F4" }}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
+                        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      <span className={styles.ssoText}>Connecting to Google...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <svg className={styles.googleIcon} viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
+                          fill="#4285F4"
+                        />
+                        <path
+                          d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24Z"
+                          fill="#34A853"
+                        />
+                        <path
+                          d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15Z"
+                          fill="#FBBC05"
+                        />
+                        <path
+                          d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z"
+                          fill="#EA4335"
+                        />
+                      </svg>
+                      <span className={styles.ssoText} style={{ fontWeight: 700 }}>
+                        Sign in using Google OAuth
+                      </span>
+                      <span className={styles.arrowIcon}>
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
+                          <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Divider */}
+              <div className={styles.dividerWrapper}>
+                <div className={styles.dividerLine} />
+                <span className={styles.dividerText}>or configure admin handle</span>
+              </div>
 
               {/* Step 1: User Profile Form (models/user.model.ts) */}
               <form onSubmit={(e) => handleSaveProfile(e, false)} className={styles.userForm}>

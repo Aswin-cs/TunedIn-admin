@@ -17,7 +17,15 @@ const songSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    poster_Id: {
+        type: String,
+        required: true
+    },
     audio_url: {
+        type: String,
+        required: true
+    },
+    audio_Id: {
         type: String,
         required: true
     },
@@ -74,4 +82,27 @@ const songSchema = new mongoose.Schema({
 
 });
 
-export const Song = mongoose.model("Song", songSchema);
+export interface ISong {
+    _id?: mongoose.Types.ObjectId | string;
+    title: string;
+    album: string;
+    artist: string[];
+    poster_url: string;
+    poster_Id: string;
+    audio_url: string;
+    audio_Id: string;
+    duration: number;
+    genre: string[];
+    uploadUser: mongoose.Types.ObjectId | string | { _id: string; username: string; email: string };
+    releasedDate: Date;
+    plays: number;
+    likes: number;
+    aiObservation?: Record<string, unknown>;
+    verificationStatus: "pending" | "verified" | "rejected";
+    verified: boolean;
+    verificationDate?: Date;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+
+export const Song = mongoose.models.Song || mongoose.model("Song", songSchema);
