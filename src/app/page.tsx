@@ -165,86 +165,7 @@ const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     status: "success",
   },
 ];
-
-const INITIAL_TRACKS: CatalogTrack[] = [
-  {
-    id: "tr-1",
-    title: "Midnight Reverie (VIP Mix)",
-    artist: "Aswin & Kiasmos",
-    album: "Echoes in Obsidian",
-    duration: "04:12",
-    storageKey: "b2://tunedin-audio/2025/tr-9812.flac",
-    streams: "412,890",
-    status: "live",
-    statusText: "Live",
-    editionBadge: "VIP",
-    isrc: "US-TUN-25-00491",
-    artworkUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDMahkNExERLuA_PCTQN9pyuiAwa9vKRWI4nmxTwOP0Be-6MnX6CDbEnxtkwAJf2WLYWWuDk0iMO1I5H_SaLbR2ZAJJGpBeZ4orUW6KELkwMm3SCpLm_QgnvgxT-4k4kbCY8oDOUTrc2L10DHfRW10sfwmxIpsRgqTTE9f28dQ9t4nmXKj26ElmRMoShspWoMIGzL6vb27H2-BAvLZMoPr2JG64VnO8Vs3CZcJ1lMoHl8iyoPAsAthW",
-    category: "all",
-  },
-  {
-    id: "tr-2",
-    title: "Chronos Descent (Atmos Master)",
-    artist: "Max Richter & Olafur",
-    album: "Spatial Horizons OST",
-    duration: "06:48",
-    storageKey: "b2://tunedin-audio/2025/tr-9804.mp3",
-    streams: "284,110",
-    status: "live",
-    statusText: "Live",
-    editionBadge: "ATMOS",
-    isrc: "DE-TUN-25-00104",
-    artworkUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAo4tkL5aSmkFp4UEVu43LSbaqMZdarbt7DsGxONqM9ZOm7S2YOuXkkT5TtKNLOC4oYcW61Mp_WtITsIrMcThehmaQyXEBd_CT3si9yy36ge3pROzwJSftsJW6f1DlA4S7wbycaNeD89M5arPCSxQc2cy7g6sqTR7rEQ-Pdv1DpbJhqGdW5Vfj7xida3bRc4FDlVq5-jJCHFZpI4cTLVgEekh8abxMeoqqATeu0Yc746OxCMP6bKgog",
-    category: "all",
-  },
-  {
-    id: "tr-3",
-    title: "Solitude in F Minor",
-    artist: "Nils Frahm Ensemble",
-    album: "The Solitary Architect",
-    duration: "05:22",
-    storageKey: "b2://tunedin-audio/2025/tr-9799.flac",
-    streams: "19,420",
-    status: "processing",
-    statusText: "Processing 84%",
-    isrc: "UK-TUN-25-09823",
-    artworkUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDu1Ad2G3mtCtKwI_McMSCx7dT4evys6R06tq-Lx4nacgqqLbytDzh3lm52g9gMnPK0r6sMWprwz3Q04fo_2AUhLLo6TWAK82f3d8Qea8htfZlQ4B6qHO9qlUwHYS49PcPvmKS8ZXN5wmUZJkVML678GIdL3_kbsvKhGyTtDivhHpdMoGlzbkx4n_518931u16RHZQoFpPjLtAyI1IPBoKqmmiN--XwCOAGXcEovrmOtFZmxnAHo4YB",
-    category: "processing",
-  },
-  {
-    id: "tr-4",
-    title: "Sub-Orbital Drift",
-    artist: "Jon Hopkins & Tycho",
-    album: "Singularity Resonances",
-    duration: "07:15",
-    storageKey: "b2://tunedin-audio/2025/tr-9712.flac",
-    streams: "670,450",
-    status: "live",
-    statusText: "Live",
-    isrc: "US-TUN-25-00388",
-    artworkUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDcv4YHS-dDsuuLooV8r9plcG24mhNC8pG1YmXDv654IIZXQ-Gvfi8oUBIVs-mYKk-odBdIncm8Uz1623N5ZewyKZ4KI4x36rO9OyRTg3gMDXFMsLDj_uQkQsV0-mWfrftTSOeiWNaAxNfWYN2eFoVshujhMhq0do80w9KEjZ7iePgOnO94HCEcXOU2Ryer4oXFczEgoE_nJs4Bt9dr0jrSVnoLeUwENTqhi8QOBdSZYmuFAtpF42Jm",
-    category: "all",
-  },
-  {
-    id: "tr-5",
-    title: "Hyperline Vector 86",
-    artist: "GUNSHIP & Kavinsky",
-    album: "Neon Overdrive",
-    duration: "03:49",
-    storageKey: "b2://tunedin-audio/2025/tr-9642.flac",
-    streams: "1,124,000",
-    status: "live",
-    statusText: "Live",
-    isrc: "FR-TUN-25-00812",
-    artworkUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBFT9K1kakYB6LH35QbHvvAMuGXdP9uZUlVB8Sh8iI5BuDtT-Iqxra82nd89CJaxRbWwGczgr4bYt_9DgRnvOmoNmQ6Jnvt5n0w2iMTuJwaqUOzubQKPeUl_QSYNPdpiofszXW3BO8UEy6zoQbbTT8uFJgqNXFklbfylZoUQDQKmc00cPgM6Qn2fz8N2jhvOrFtforHx2ZRN1_V0AqWlCuwjP6p9YoaVoE89UjrIfd23XXaDYII9I_f",
-    category: "all",
-  },
-];
+const INITIAL_TRACKS: CatalogTrack[] = [];
 
 // 55 Bar heights matching the audio waveform in the Stitch mockup
 const FREQUENCY_HEIGHTS = [
@@ -281,13 +202,13 @@ export default function AdminDashboardPage() {
   ]);
 
   // Catalog Table State
-  const [tracks, setTracks] = useState<CatalogTrack[]>(INITIAL_TRACKS);
+  const [tracks, setTracks] = useState<CatalogTrack[]>([]);
   const [rawSongs, setRawSongs] = useState<any[]>([]);
   const [trackCounts, setTrackCounts] = useState({
-    all: 1248,
-    pending: 4,
-    drafts: 18,
-    verified: 1240,
+    all: 0,
+    pending: 0,
+    drafts: 0,
+    verified: 0,
   });
   const [isLoadingTracks, setIsLoadingTracks] = useState(false);
   const [showRawJsonModal, setShowRawJsonModal] = useState(false);
@@ -1740,7 +1661,7 @@ export default function AdminDashboardPage() {
           </section>
 
           {/* SECTION B: Release & Asset Ingestion Studio */}
-          <section className={styles.studioSection}>
+          <section id="ingestion-section" className={styles.studioSection}>
             {/* Header */}
             <div className={styles.sectionHeader}>
               <div className={styles.sectionHeaderLeft}>
@@ -2269,194 +2190,295 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Table */}
-            <div className={styles.tableWrapper}>
-              <table className={styles.catalogTable}>
-                <thead>
-                  <tr className={styles.tableHeadRow}>
-                    <th className={styles.thCell} style={{ width: "48px", textAlign: "center" }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.length > 0 && selectedIds.length === filteredTracks.length}
-                        onChange={handleSelectAll}
-                        style={{ accentColor: "#A03B00", cursor: "pointer" }}
-                      />
-                    </th>
-                    <th className={styles.thCell}>Track &amp; Artwork</th>
-                    <th className={styles.thCell}>Album Release</th>
-                    <th className={styles.thCell} style={{ textAlign: "right" }}>Duration</th>
-                    <th className={styles.thCell}>Backblaze B2 Key</th>
-                    <th className={styles.thCell} style={{ textAlign: "right" }}>Streams</th>
-                    <th className={styles.thCell}>Status</th>
-                    <th className={styles.thCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTracks.map((track) => {
-                    const isSelected = selectedIds.includes(track.id);
-                    return (
-                      <tr key={track.id} className={styles.tableRow}>
-                        <td className={styles.tdCell} style={{ textAlign: "center" }}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelectRow(track.id)}
-                            style={{ accentColor: "#A03B00", cursor: "pointer" }}
-                          />
-                        </td>
-                        <td className={styles.tdCell}>
-                          <div className={styles.trackCell}>
-                            <div className={styles.albumThumbnailWrapper}>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={track.artworkUrl}
-                                alt={track.title}
-                                className={styles.albumThumbnail}
-                              />
+            {/* Table or Empty State */}
+            {filteredTracks.length === 0 ? (
+              <div
+                style={{
+                  padding: "4.5rem 2rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center",
+                  backgroundColor: "#ffffff",
+                  minHeight: "280px",
+                }}
+              >
+                <div
+                  style={{
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "50%",
+                    backgroundColor: "#FFF2EB",
+                    color: "#A03B00",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: "1rem",
+                    boxShadow: "0 4px 16px rgba(160, 59, 0, 0.12)",
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: "32px" }}>
+                    library_music
+                  </span>
+                </div>
+                <h3
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: 700,
+                    color: "#1b1c18",
+                    margin: "0 0 0.5rem 0",
+                    fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)",
+                  }}
+                >
+                  {searchQuery
+                    ? "No songs matching your filter"
+                    : activeTab !== "all"
+                    ? `No songs in ${activeTab === "processing" ? "Pending Transcode" : "Drafts"}`
+                    : "No songs found in catalog"}
+                </h3>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#5f5e5e",
+                    maxWidth: "440px",
+                    margin: "0 0 1.5rem 0",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {searchQuery
+                    ? `We couldn't find any master recordings matching "${searchQuery}". Try a different search term or clear the filter.`
+                    : "There are currently no real songs stored in the database. Please add songs using the Ingestion Studio to populate your catalog."}
+                </p>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                  <button
+                    type="button"
+                    className={styles.btnPublish}
+                    onClick={() => {
+                      const el = document.getElementById("ingestion-section");
+                      if (el) {
+                        el.scrollIntoView({ behavior: "smooth" });
+                      } else {
+                        window.scrollTo({ top: 320, behavior: "smooth" });
+                      }
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                    <span>Add a Song</span>
+                  </button>
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className={styles.btnSecondary}
+                      onClick={() => setSearchQuery("")}
+                    >
+                      <span>Clear Filter</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className={styles.tableWrapper}>
+                <table className={styles.catalogTable}>
+                  <thead>
+                    <tr className={styles.tableHeadRow}>
+                      <th className={styles.thCell} style={{ width: "48px", textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.length > 0 && selectedIds.length === filteredTracks.length}
+                          onChange={handleSelectAll}
+                          style={{ accentColor: "#A03B00", cursor: "pointer" }}
+                        />
+                      </th>
+                      <th className={styles.thCell}>Track &amp; Artwork</th>
+                      <th className={styles.thCell}>Album Release</th>
+                      <th className={styles.thCell} style={{ textAlign: "right" }}>Duration</th>
+                      <th className={styles.thCell}>Backblaze B2 Key</th>
+                      <th className={styles.thCell} style={{ textAlign: "right" }}>Streams</th>
+                      <th className={styles.thCell}>Status</th>
+                      <th className={styles.thCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTracks.map((track) => {
+                      const isSelected = selectedIds.includes(track.id);
+                      return (
+                        <tr key={track.id} className={styles.tableRow}>
+                          <td className={styles.tdCell} style={{ textAlign: "center" }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelectRow(track.id)}
+                              style={{ accentColor: "#A03B00", cursor: "pointer" }}
+                            />
+                          </td>
+                          <td className={styles.tdCell}>
+                            <div className={styles.trackCell}>
+                              <div className={styles.albumThumbnailWrapper}>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={track.artworkUrl}
+                                  alt={track.title}
+                                  className={styles.albumThumbnail}
+                                />
+                                <button
+                                  type="button"
+                                  className={styles.playOverlayBtn}
+                                  onClick={() => {
+                                    setActiveFileName(`${track.title.toLowerCase().replace(/[^a-z0-9]/g, "_")}.flac`);
+                                    setTrackTitle(track.title);
+                                    setPrimaryArtist(track.artist);
+                                    setAlbumCollection(track.album);
+                                    setIsrc(track.isrc);
+                                    setArtworkUrl(track.artworkUrl);
+                                    setCurrentSeconds(0);
+                                    if (!isPlaying) {
+                                      setIsPlaying(true);
+                                      startAudioSynth();
+                                    }
+                                    showToast(`Loaded and playing "${track.title}" in Master Deck`);
+                                    window.scrollTo({ top: 320, behavior: "smooth" });
+                                  }}
+                                  title="Play in Master Player"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                    play_arrow
+                                  </span>
+                                </button>
+                              </div>
+                              <div className={styles.trackMetaCol}>
+                                <div className={styles.trackTitleRow}>
+                                  <span className={styles.trackTitle}>{track.title}</span>
+                                  {track.editionBadge && (
+                                    <span
+                                      className={
+                                        track.editionBadge === "VIP"
+                                          ? styles.editionBadge
+                                          : styles.atmosBadge
+                                      }
+                                    >
+                                      {track.editionBadge}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className={styles.trackSubDetails}>
+                                  <span>{track.artist}</span>
+                                  <span>•</span>
+                                  <span className={styles.isrcCode}>{track.isrc}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className={styles.tdCell} style={{ color: "#5f5e5e", fontWeight: 500, maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {track.album}
+                          </td>
+                          <td className={styles.tdCell} style={{ textAlign: "right", fontFamily: "Space Grotesk, sans-serif", color: "#5f5e5e", fontWeight: 500 }}>
+                            {track.duration}
+                          </td>
+                          <td className={styles.tdCell}>
+                            <span
+                              className={styles.storagePill}
+                              onClick={() => copyToClipboard(track.storageKey, "Backblaze B2 Key")}
+                              title="Click to copy Backblaze B2 key"
+                              style={{ cursor: "pointer" }}
+                            >
+                              {track.storageKey}
+                            </span>
+                          </td>
+                          <td className={styles.tdCell} style={{ textAlign: "right", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>
+                            {track.streams}
+                          </td>
+                          <td className={styles.tdCell}>
+                            {track.status === "live" ? (
+                              <span className={styles.statusLivePill}>
+                                <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }} />
+                                Live
+                              </span>
+                            ) : (
+                              <span className={styles.statusProcessingPill}>
+                                <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#A03B00" }} />
+                                {track.statusText}
+                              </span>
+                            )}
+                          </td>
+                          <td className={styles.tdCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>
+                            <div className={styles.rowActions}>
                               <button
                                 type="button"
-                                className={styles.playOverlayBtn}
+                                className={styles.rowActionBtn}
+                                title="Inspect Raw MongoDB Document"
                                 onClick={() => {
-                                  setActiveFileName(`${track.title.toLowerCase().replace(/[^a-z0-9]/g, "_")}.flac`);
+                                  setInspectingSong(track.rawSong || track);
+                                  setShowRawJsonModal(true);
+                                }}
+                              >
+                                <span className="material-symbols-outlined text-[18px]">data_object</span>
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.rowActionBtn}
+                                title="Stream Telemetry"
+                                onClick={() => showToast(`Telemetry: ${track.streams} total requests via edge network.`)}
+                              >
+                                <span className="material-symbols-outlined text-[18px]">equalizer</span>
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.rowActionBtn}
+                                title="Edit Metadata"
+                                onClick={() => {
                                   setTrackTitle(track.title);
                                   setPrimaryArtist(track.artist);
                                   setAlbumCollection(track.album);
                                   setIsrc(track.isrc);
                                   setArtworkUrl(track.artworkUrl);
-                                  setCurrentSeconds(0);
-                                  if (!isPlaying) {
-                                    setIsPlaying(true);
-                                    startAudioSynth();
-                                  }
-                                  showToast(`Loaded and playing "${track.title}" in Master Deck`);
-                                  window.scrollTo({ top: 320, behavior: "smooth" });
+                                  showToast(`Loaded "${track.title}" into Ingestion Studio.`);
+                                  window.scrollTo({ top: 300, behavior: "smooth" });
                                 }}
-                                title="Play in Master Player"
                               >
-                                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                                  play_arrow
-                                </span>
+                                <span className="material-symbols-outlined text-[18px]">edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                className={`${styles.rowActionBtn} ${styles.rowActionBtnDanger}`}
+                                title="Archive Master"
+                                onClick={() => handleDeleteTrack(track.id, track.title)}
+                              >
+                                <span className="material-symbols-outlined text-[18px]">delete</span>
                               </button>
                             </div>
-                            <div className={styles.trackMetaCol}>
-                              <div className={styles.trackTitleRow}>
-                                <span className={styles.trackTitle}>{track.title}</span>
-                                {track.editionBadge && (
-                                  <span
-                                    className={
-                                      track.editionBadge === "VIP"
-                                        ? styles.editionBadge
-                                        : styles.atmosBadge
-                                    }
-                                  >
-                                    {track.editionBadge}
-                                  </span>
-                                )}
-                              </div>
-                              <div className={styles.trackSubDetails}>
-                                <span>{track.artist}</span>
-                                <span>•</span>
-                                <span className={styles.isrcCode}>{track.isrc}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className={styles.tdCell} style={{ color: "#5f5e5e", fontWeight: 500, maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {track.album}
-                        </td>
-                        <td className={styles.tdCell} style={{ textAlign: "right", fontFamily: "Space Grotesk, sans-serif", color: "#5f5e5e", fontWeight: 500 }}>
-                          {track.duration}
-                        </td>
-                        <td className={styles.tdCell}>
-                          <span
-                            className={styles.storagePill}
-                            onClick={() => copyToClipboard(track.storageKey, "Backblaze B2 Key")}
-                            title="Click to copy Backblaze B2 key"
-                            style={{ cursor: "pointer" }}
-                          >
-                            {track.storageKey}
-                          </span>
-                        </td>
-                        <td className={styles.tdCell} style={{ textAlign: "right", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>
-                          {track.streams}
-                        </td>
-                        <td className={styles.tdCell}>
-                          {track.status === "live" ? (
-                            <span className={styles.statusLivePill}>
-                              <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }} />
-                              Live
-                            </span>
-                          ) : (
-                            <span className={styles.statusProcessingPill}>
-                              <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#A03B00" }} />
-                              {track.statusText}
-                            </span>
-                          )}
-                        </td>
-                        <td className={styles.tdCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>
-                          <div className={styles.rowActions}>
-                            <button
-                              type="button"
-                              className={styles.rowActionBtn}
-                              title="Inspect Raw MongoDB Document"
-                              onClick={() => {
-                                setInspectingSong(track.rawSong || track);
-                                setShowRawJsonModal(true);
-                              }}
-                            >
-                              <span className="material-symbols-outlined text-[18px]">data_object</span>
-                            </button>
-                            <button
-                              type="button"
-                              className={styles.rowActionBtn}
-                              title="Stream Telemetry"
-                              onClick={() => showToast(`Telemetry: ${track.streams} total requests via edge network.`)}
-                            >
-                              <span className="material-symbols-outlined text-[18px]">equalizer</span>
-                            </button>
-                            <button
-                              type="button"
-                              className={styles.rowActionBtn}
-                              title="Edit Metadata"
-                              onClick={() => {
-                                setTrackTitle(track.title);
-                                setPrimaryArtist(track.artist);
-                                setAlbumCollection(track.album);
-                                setIsrc(track.isrc);
-                                setArtworkUrl(track.artworkUrl);
-                                showToast(`Loaded "${track.title}" into Ingestion Studio.`);
-                                window.scrollTo({ top: 300, behavior: "smooth" });
-                              }}
-                            >
-                              <span className="material-symbols-outlined text-[18px]">edit</span>
-                            </button>
-                            <button
-                              type="button"
-                              className={`${styles.rowActionBtn} ${styles.rowActionBtnDanger}`}
-                              title="Archive Master"
-                              onClick={() => handleDeleteTrack(track.id, track.title)}
-                            >
-                              <span className="material-symbols-outlined text-[18px]">delete</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Pagination Footer */}
             <div className={styles.paginationFooter}>
               <div className={styles.paginationInfo}>
-                Showing <strong style={{ color: "#1b1c18" }}>{filteredTracks.length > 0 ? 1 : 0}</strong> to{" "}
-                <strong style={{ color: "#1b1c18" }}>{filteredTracks.length}</strong> of{" "}
-                <strong style={{ color: "#1b1c18" }}>{trackCounts.all.toLocaleString()}</strong> master recordings
-                {isLoadingTracks && (
-                  <span style={{ marginLeft: "8px", fontSize: "12px", color: "#A03B00", fontWeight: 600 }}>
-                    • Syncing with MongoDB...
+                {filteredTracks.length === 0 ? (
+                  <span>
+                    No master recordings found
+                    {isLoadingTracks && (
+                      <span style={{ marginLeft: "8px", fontSize: "12px", color: "#A03B00", fontWeight: 600 }}>
+                        • Syncing with MongoDB...
+                      </span>
+                    )}
                   </span>
+                ) : (
+                  <>
+                    Showing <strong style={{ color: "#1b1c18" }}>1</strong> to{" "}
+                    <strong style={{ color: "#1b1c18" }}>{filteredTracks.length}</strong> of{" "}
+                    <strong style={{ color: "#1b1c18" }}>{trackCounts.all.toLocaleString()}</strong> master recordings
+                    {isLoadingTracks && (
+                      <span style={{ marginLeft: "8px", fontSize: "12px", color: "#A03B00", fontWeight: 600 }}>
+                        • Syncing with MongoDB...
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
 
