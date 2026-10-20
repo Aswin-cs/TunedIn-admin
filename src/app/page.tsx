@@ -227,8 +227,8 @@ export default function AdminDashboardPage() {
     verified: 0,
   });
   const [isLoadingTracks, setIsLoadingTracks] = useState(false);
-  const [showRawJsonModal, setShowRawJsonModal] = useState(false);
-  const [inspectingSong, setInspectingSong] = useState<any | null>(null);
+  const [showMetadataModal, setShowMetadataModal] = useState(false);
+  const [inspectingTrack, setInspectingTrack] = useState<CatalogTrack | null>(null);
 
   const [activeTab, setActiveTab] = useState<"all" | "processing" | "drafts">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -2700,37 +2700,29 @@ export default function AdminDashboardPage() {
                   type="button"
                   className={styles.exportBtn}
                   onClick={() => {
-                    setInspectingSong(null);
-                    setShowRawJsonModal(true);
-                  }}
-                  title="Inspect Raw MongoDB Data (song.model.ts)"
-                  style={{
-                    backgroundColor: showRawJsonModal && !inspectingSong ? "#FFF2EB" : "#ffffff",
-                    borderColor: showRawJsonModal && !inspectingSong ? "#A03B00" : "#E6E2DA",
-                    color: showRawJsonModal && !inspectingSong ? "#A03B00" : "#5f5e5e",
-                  }}
-                >
-                  <span className="material-symbols-outlined text-[16px]">data_object</span>
-                  <span>Raw Data ({rawSongs.length || tracks.length})</span>
-                </button>
-
-                <button
-                  type="button"
-                  className={styles.exportBtn}
-                  onClick={() => {
-                    const dataToExport = rawSongs.length > 0 ? rawSongs : tracks;
-                    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], {
+                    const cleanExport = tracks.map((t) => ({
+                      title: t.title,
+                      artist: t.artist,
+                      album: t.album,
+                      duration: t.duration,
+                      isrc: t.isrc,
+                      genre: t.rawSong?.genre || ["Electronic"],
+                      status: t.status === "live" ? "Verified" : t.statusText,
+                      streams: t.streams,
+                      releasedDate: t.rawSong?.releasedDate ? new Date(t.rawSong.releasedDate).toISOString().split("T")[0] : undefined,
+                    }));
+                    const blob = new Blob([JSON.stringify(cleanExport, null, 2)], {
                       type: "application/json",
                     });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
                     a.href = url;
-                    a.download = `tunedin-songs-raw-${Date.now()}.json`;
+                    a.download = `tunedin-catalog-export-${Date.now()}.json`;
                     a.click();
                     URL.revokeObjectURL(url);
-                    showToast("Exported raw MongoDB catalog metadata to JSON format.");
+                    showToast("Exported catalog metadata to JSON format.");
                   }}
-                  title="Export Raw JSON"
+                  title="Export Catalog Metadata"
                 >
                   <span className="material-symbols-outlined text-[16px]">file_download</span>
                   <span>Export</span>
@@ -2841,7 +2833,6 @@ export default function AdminDashboardPage() {
                       <th className={styles.thCell}>Track &amp; Artwork</th>
                       <th className={styles.thCell}>Album Release</th>
                       <th className={styles.thCell} style={{ textAlign: "right" }}>Duration</th>
-                      <th className={styles.thCell}>Cloudinary Public ID</th>
                       <th className={styles.thCell} style={{ textAlign: "right" }}>Streams</th>
                       <th className={styles.thCell}>Status</th>
                       <th className={styles.thCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>Actions</th>
@@ -2909,16 +2900,6 @@ export default function AdminDashboardPage() {
                           <td className={styles.tdCell} style={{ textAlign: "right", fontFamily: "Space Grotesk, sans-serif", color: "#5f5e5e", fontWeight: 500 }}>
                             {track.duration}
                           </td>
-                          <td className={styles.tdCell}>
-                            <span
-                              className={styles.storagePill}
-                              onClick={() => copyToClipboard(track.storageKey, "Cloudinary Public ID")}
-                              title="Click to copy Cloudinary public ID"
-                              style={{ cursor: "pointer" }}
-                            >
-                              {track.storageKey}
-                            </span>
-                          </td>
                           <td className={styles.tdCell} style={{ textAlign: "right", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>
                             {track.streams}
                           </td>
@@ -2940,10 +2921,10 @@ export default function AdminDashboardPage() {
                               <button
                                 type="button"
                                 className={styles.rowActionBtn}
-                                title="Inspect Raw MongoDB Document"
+                                title="View Track Metadata"
                                 onClick={() => {
-                                  setInspectingSong(track.rawSong || track);
-                                  setShowRawJsonModal(true);
+                                  setInspectingTrack(track);
+                                  setShowMetadataModal(true);
                                 }}
                               >
                                 <span className="material-symbols-outlined text-[18px]">data_object</span>
@@ -3158,79 +3139,123 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Raw MongoDB Song Data Inspection Modal */}
-      {showRawJsonModal && (
-        <div className={styles.modalOverlay} onClick={() => setShowRawJsonModal(false)}>
+      {/* Clean Track Metadata Modal (No internal MongoDB document details or Cloudinary keys) */}
+      {showMetadataModal && inspectingTrack && (
+        <div className={styles.modalOverlay} onClick={() => setShowMetadataModal(false)}>
           <div
             className={styles.modalContent}
-            style={{ maxWidth: "780px", maxHeight: "88vh", display: "flex", flexDirection: "column" }}
+            style={{ maxWidth: "620px", maxHeight: "88vh", display: "flex", flexDirection: "column" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className={styles.modalHeader}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <div
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "8px",
-                    backgroundColor: "#FFF2EB",
-                    color: "#A03B00",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <span className="material-symbols-outlined text-[20px]">data_object</span>
-                </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={inspectingTrack.artworkUrl}
+                  alt={inspectingTrack.title}
+                  style={{ width: "42px", height: "42px", borderRadius: "8px", objectFit: "cover" }}
+                />
                 <div>
-                  <h3 className={styles.modalTitle}>
-                    {inspectingSong
-                      ? `Raw Document: ${inspectingSong.title}`
-                      : "MongoDB Catalog Raw Data"}
-                  </h3>
+                  <h3 className={styles.modalTitle}>{inspectingTrack.title}</h3>
                   <p className={styles.modalSubtitle}>
-                    Mongoose Schema: <code style={{ color: "#A03B00", fontWeight: 700 }}>Song</code> (models/song.model.ts) •{" "}
-                    {inspectingSong ? "1 document" : `${rawSongs.length || tracks.length} documents fetched via /api/songs`}
+                    {inspectingTrack.artist} • {inspectingTrack.album}
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 className={styles.modalCloseBtn}
-                onClick={() => setShowRawJsonModal(false)}
+                onClick={() => setShowMetadataModal(false)}
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <div
-              style={{
-                padding: "1rem 1.5rem",
-                overflowY: "auto",
-                flex: 1,
-                backgroundColor: "#161614",
-                borderRadius: "8px",
-                margin: "1rem 1.5rem",
-                border: "1px solid #2a2a26",
-              }}
-            >
-              <pre
+            <div style={{ padding: "1.25rem 1.5rem", overflowY: "auto", flex: 1 }}>
+              {/* Structured Metadata Grid */}
+              <div
                 style={{
-                  margin: 0,
-                  fontFamily: "'Space Grotesk', monospace, Consolas",
-                  fontSize: "12px",
-                  lineHeight: "1.5",
-                  color: "#d4d4d0",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "12px",
+                  marginBottom: "1.25rem",
                 }}
               >
-                {JSON.stringify(
-                  inspectingSong || (rawSongs.length > 0 ? rawSongs : tracks),
-                  null,
-                  2
-                )}
-              </pre>
+                <div style={{ background: "#F5F2EA", padding: "10px 14px", borderRadius: "8px" }}>
+                  <span style={{ fontSize: "11px", color: "#8E887E", textTransform: "uppercase", fontWeight: 600 }}>Track Title</span>
+                  <p style={{ margin: "2px 0 0", fontWeight: 700, color: "#1C1B18", fontSize: "14px" }}>{inspectingTrack.title}</p>
+                </div>
+                <div style={{ background: "#F5F2EA", padding: "10px 14px", borderRadius: "8px" }}>
+                  <span style={{ fontSize: "11px", color: "#8E887E", textTransform: "uppercase", fontWeight: 600 }}>Primary Artist</span>
+                  <p style={{ margin: "2px 0 0", fontWeight: 700, color: "#1C1B18", fontSize: "14px" }}>{inspectingTrack.artist}</p>
+                </div>
+                <div style={{ background: "#F5F2EA", padding: "10px 14px", borderRadius: "8px" }}>
+                  <span style={{ fontSize: "11px", color: "#8E887E", textTransform: "uppercase", fontWeight: 600 }}>Album / Collection</span>
+                  <p style={{ margin: "2px 0 0", fontWeight: 600, color: "#1C1B18", fontSize: "13px" }}>{inspectingTrack.album}</p>
+                </div>
+                <div style={{ background: "#F5F2EA", padding: "10px 14px", borderRadius: "8px" }}>
+                  <span style={{ fontSize: "11px", color: "#8E887E", textTransform: "uppercase", fontWeight: 600 }}>Duration</span>
+                  <p style={{ margin: "2px 0 0", fontWeight: 700, color: "#1C1B18", fontSize: "14px", fontFamily: "Space Grotesk, monospace" }}>{inspectingTrack.duration}</p>
+                </div>
+                <div style={{ background: "#F5F2EA", padding: "10px 14px", borderRadius: "8px" }}>
+                  <span style={{ fontSize: "11px", color: "#8E887E", textTransform: "uppercase", fontWeight: 600 }}>ISRC Code</span>
+                  <p style={{ margin: "2px 0 0", fontWeight: 700, color: "#A03B00", fontSize: "13px", fontFamily: "Space Grotesk, monospace" }}>{inspectingTrack.isrc}</p>
+                </div>
+                <div style={{ background: "#F5F2EA", padding: "10px 14px", borderRadius: "8px" }}>
+                  <span style={{ fontSize: "11px", color: "#8E887E", textTransform: "uppercase", fontWeight: 600 }}>Catalog Status</span>
+                  <p style={{ margin: "2px 0 0", fontWeight: 700, color: inspectingTrack.status === "live" ? "#059669" : "#A03B00", fontSize: "13px" }}>
+                    {inspectingTrack.status === "live" ? "Verified & Live" : inspectingTrack.statusText}
+                  </p>
+                </div>
+                <div style={{ background: "#F5F2EA", padding: "10px 14px", borderRadius: "8px" }}>
+                  <span style={{ fontSize: "11px", color: "#8E887E", textTransform: "uppercase", fontWeight: 600 }}>Total Streams</span>
+                  <p style={{ margin: "2px 0 0", fontWeight: 700, color: "#1C1B18", fontSize: "14px" }}>{inspectingTrack.streams}</p>
+                </div>
+                <div style={{ background: "#F5F2EA", padding: "10px 14px", borderRadius: "8px" }}>
+                  <span style={{ fontSize: "11px", color: "#8E887E", textTransform: "uppercase", fontWeight: 600 }}>Release Date</span>
+                  <p style={{ margin: "2px 0 0", fontWeight: 600, color: "#1C1B18", fontSize: "13px" }}>
+                    {inspectingTrack.rawSong?.releasedDate ? new Date(inspectingTrack.rawSong.releasedDate).toLocaleDateString() : "Just Released"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Clean Metadata JSON (Strictly without MongoDB _id, __v, or Cloudinary keys) */}
+              <div>
+                <span style={{ fontSize: "11px", color: "#8E887E", textTransform: "uppercase", fontWeight: 600, display: "block", marginBottom: "6px" }}>
+                  Track Specifications
+                </span>
+                <pre
+                  style={{
+                    margin: 0,
+                    fontFamily: "'Space Grotesk', monospace, Consolas",
+                    fontSize: "12px",
+                    lineHeight: "1.5",
+                    color: "#d4d4d0",
+                    backgroundColor: "#161614",
+                    borderRadius: "8px",
+                    padding: "12px 16px",
+                    border: "1px solid #2a2a26",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {JSON.stringify(
+                    {
+                      title: inspectingTrack.title,
+                      artist: inspectingTrack.artist,
+                      album: inspectingTrack.album,
+                      duration: inspectingTrack.duration,
+                      isrc: inspectingTrack.isrc,
+                      genre: inspectingTrack.rawSong?.genre || ["Electronic"],
+                      status: inspectingTrack.status === "live" ? "Verified / Live" : inspectingTrack.statusText,
+                      streams: inspectingTrack.streams,
+                      releasedDate: inspectingTrack.rawSong?.releasedDate ? new Date(inspectingTrack.rawSong.releasedDate).toLocaleDateString() : "Just Released",
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
+              </div>
             </div>
 
             <div className={styles.modalFooter}>
@@ -3238,21 +3263,31 @@ export default function AdminDashboardPage() {
                 type="button"
                 className={styles.btnSecondary}
                 onClick={() => {
-                  const content = JSON.stringify(
-                    inspectingSong || (rawSongs.length > 0 ? rawSongs : tracks),
+                  const cleanJson = JSON.stringify(
+                    {
+                      title: inspectingTrack.title,
+                      artist: inspectingTrack.artist,
+                      album: inspectingTrack.album,
+                      duration: inspectingTrack.duration,
+                      isrc: inspectingTrack.isrc,
+                      genre: inspectingTrack.rawSong?.genre || ["Electronic"],
+                      status: inspectingTrack.status === "live" ? "Verified / Live" : inspectingTrack.statusText,
+                      streams: inspectingTrack.streams,
+                      releasedDate: inspectingTrack.rawSong?.releasedDate ? new Date(inspectingTrack.rawSong.releasedDate).toLocaleDateString() : "Just Released",
+                    },
                     null,
                     2
                   );
-                  copyToClipboard(content, "Raw JSON");
+                  copyToClipboard(cleanJson, "Clean Track Metadata");
                 }}
               >
                 <span className="material-symbols-outlined text-[18px]">content_copy</span>
-                <span>Copy JSON</span>
+                <span>Copy Metadata</span>
               </button>
               <button
                 type="button"
                 className={styles.btnPublish}
-                onClick={() => setShowRawJsonModal(false)}
+                onClick={() => setShowMetadataModal(false)}
               >
                 Done
               </button>
