@@ -234,6 +234,7 @@ export default function AdminDashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Status & Feedback
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -256,7 +257,7 @@ export default function AdminDashboardPage() {
   const fetchCatalogSongs = async () => {
     setIsLoadingTracks(true);
     try {
-      const res = await fetch("/api/songs");
+      const res = await fetch("/api/songs?limit=500");
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.songs)) {
@@ -1063,6 +1064,52 @@ export default function AdminDashboardPage() {
       track.storageKey.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTab && matchesQuery;
   });
+
+  // Real Pagination State & Calculations
+  const totalPages = Math.max(1, Math.ceil(filteredTracks.length / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredTracks.length);
+  const paginatedTracks = filteredTracks.slice(startIndex, endIndex);
+
+  // Synchronize currentPage if it goes out of bounds when filtered
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  // Reset page to 1 when search, filter or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, pageSize]);
+
+  // Master checkbox on current page
+  const isAllCurrentPageSelected =
+    paginatedTracks.length > 0 &&
+    paginatedTracks.every((t) => selectedIds.includes(t.id));
+
+  const handleSelectCurrentPage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...paginatedTracks.map((t) => t.id)])));
+    } else {
+      const pageIdSet = new Set(paginatedTracks.map((t) => t.id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIdSet.has(id)));
+    }
+  };
+
+  const getPaginationPages = (current: number, total: number): (number | "...")[] => {
+    if (total <= 5) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    if (current <= 3) {
+      return [1, 2, 3, 4, "...", total];
+    }
+    if (current >= total - 2) {
+      return [1, "...", total - 3, total - 2, total - 1, total];
+    }
+    return [1, "...", current - 1, current, current + 1, "...", total];
+  };
 
   // Authentication Gate Check
   if (status === "loading") {
@@ -2825,9 +2872,10 @@ export default function AdminDashboardPage() {
                       <th className={styles.thCell} style={{ width: "48px", textAlign: "center" }}>
                         <input
                           type="checkbox"
-                          checked={selectedIds.length > 0 && selectedIds.length === filteredTracks.length}
-                          onChange={handleSelectAll}
+                          checked={isAllCurrentPageSelected}
+                          onChange={handleSelectCurrentPage}
                           style={{ accentColor: "#A03B00", cursor: "pointer" }}
+                          title={isAllCurrentPageSelected ? "Deselect page" : "Select all on this page"}
                         />
                       </th>
                       <th className={styles.thCell}>Track &amp; Artwork</th>
@@ -2839,7 +2887,7 @@ export default function AdminDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredTracks.map((track) => {
+                    {paginatedTracks.map((track) => {
                       const isSelected = selectedIds.includes(track.id);
                       return (
                         <tr key={track.id} className={styles.tableRow}>
@@ -2984,16 +3032,47 @@ export default function AdminDashboardPage() {
                     )}
                   </span>
                 ) : (
-                  <>
-                    Showing <strong style={{ color: "#1b1c18" }}>1</strong> to{" "}
-                    <strong style={{ color: "#1b1c18" }}>{filteredTracks.length}</strong> of{" "}
-                    <strong style={{ color: "#1b1c18" }}>{trackCounts.all.toLocaleString()}</strong> master recordings
-                    {isLoadingTracks && (
-                      <span style={{ marginLeft: "8px", fontSize: "12px", color: "#A03B00", fontWeight: 600 }}>
-                        • Syncing with MongoDB...
-                      </span>
-                    )}
-                  </>
+                  <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                    <span>
+                      Showing <strong style={{ color: "#1b1c18" }}>{startIndex + 1}</strong> to{" "}
+                      <strong style={{ color: "#1b1c18" }}>{endIndex}</strong> of{" "}
+                      <strong style={{ color: "#1b1c18" }}>{filteredTracks.length.toLocaleString()}</strong> master recordings
+                      {filteredTracks.length !== trackCounts.all && (
+                        <span style={{ color: "#8a8780", marginLeft: "4px" }}>
+                          (filtered from {trackCounts.all.toLocaleString()} total)
+                        </span>
+                      )}
+                      {isLoadingTracks && (
+                        <span style={{ marginLeft: "8px", fontSize: "12px", color: "#A03B00", fontWeight: 600 }}>
+                          • Syncing with MongoDB...
+                        </span>
+                      )}
+                    </span>
+
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#5f5e5e" }}>
+                      <span>Rows:</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => setPageSize(Number(e.target.value))}
+                        style={{
+                          padding: "2px 8px",
+                          borderRadius: "6px",
+                          border: "1px solid #E6E2DA",
+                          backgroundColor: "#ffffff",
+                          color: "#1b1c18",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          outline: "none",
+                        }}
+                      >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                      </select>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -3001,44 +3080,41 @@ export default function AdminDashboardPage() {
                 <button
                   type="button"
                   className={styles.pageBtn}
-                  disabled={currentPage === 1}
+                  disabled={safeCurrentPage <= 1}
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  title="Previous page"
                 >
                   Previous
                 </button>
-                <button
-                  type="button"
-                  className={`${styles.pageBtn} ${currentPage === 1 ? styles.pageBtnActive : ""}`}
-                  onClick={() => setCurrentPage(1)}
-                >
-                  1
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.pageBtn} ${currentPage === 2 ? styles.pageBtnActive : ""}`}
-                  onClick={() => setCurrentPage(2)}
-                >
-                  2
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.pageBtn} ${currentPage === 3 ? styles.pageBtnActive : ""}`}
-                  onClick={() => setCurrentPage(3)}
-                >
-                  3
-                </button>
-                <span style={{ padding: "0 4px", color: "#5f5e5e", fontWeight: 600 }}>...</span>
-                <button
-                  type="button"
-                  className={styles.pageBtn}
-                  onClick={() => setCurrentPage(250)}
-                >
-                  250
-                </button>
+                {getPaginationPages(safeCurrentPage, totalPages).map((p, idx) => {
+                  if (p === "...") {
+                    return (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        style={{ padding: "0 4px", color: "#5f5e5e", fontWeight: 600, userSelect: "none" }}
+                      >
+                        ...
+                      </span>
+                    );
+                  }
+                  const pageNum = p as number;
+                  return (
+                    <button
+                      key={`page-${pageNum}`}
+                      type="button"
+                      className={`${styles.pageBtn} ${safeCurrentPage === pageNum ? styles.pageBtnActive : ""}`}
+                      onClick={() => setCurrentPage(pageNum)}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
                 <button
                   type="button"
                   className={styles.pageBtn}
-                  onClick={() => setCurrentPage((p) => p + 1)}
+                  disabled={safeCurrentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  title="Next page"
                 >
                   Next
                 </button>

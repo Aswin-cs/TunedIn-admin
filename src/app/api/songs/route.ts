@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search")?.trim() || "";
     const status = searchParams.get("status")?.trim().toLowerCase() || "all";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "50", 10)));
+    const limit = Math.max(1, Math.min(1000, parseInt(searchParams.get("limit") || "500", 10)));
     const skip = (page - 1) * limit;
 
     // Filter query builder
