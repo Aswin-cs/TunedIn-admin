@@ -31,7 +31,11 @@ export type AdminRole =
   | "SecOps Engineer"
   | "Catalog Lead"
   | "Audio Curator"
-  | "Infrastructure Eng";
+  | "Infrastructure Eng"
+  | "admin"
+  | "subadmin"
+  | "editor"
+  | string;
 
 export interface AdminUser {
   id: string;
@@ -363,9 +367,99 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Admin Loading State
+  const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
+
+  // Map document from MongoDB User Model (models/user.model.ts) to AdminUser UI format
+  const mapDbUserToAdmin = (u: any): AdminUser => {
+    const rawRole = (u.role || "subadmin").toString();
+    let displayRole: AdminRole = rawRole;
+    if (rawRole.toLowerCase() === "admin") displayRole = "Super Admin";
+    else if (rawRole.toLowerCase() === "subadmin") displayRole = "Audio Curator";
+    else if (rawRole.toLowerCase() === "editor") displayRole = "Catalog Lead";
+
+    const roleColors: Record<string, { bg: string; color: string }> = {
+      "Super Admin": { bg: "#FFF2EB", color: "#A03B00" },
+      admin: { bg: "#FFF2EB", color: "#A03B00" },
+      "SecOps Engineer": { bg: "#f3e8ff", color: "#7c3aed" },
+      "Catalog Lead": { bg: "#dbeafe", color: "#2563eb" },
+      editor: { bg: "#dbeafe", color: "#2563eb" },
+      "Audio Curator": { bg: "#d1fae5", color: "#059669" },
+      subadmin: { bg: "#d1fae5", color: "#059669" },
+      "Infrastructure Eng": { bg: "#fef3c7", color: "#d97706" },
+    };
+
+    const colors = roleColors[displayRole] || roleColors[rawRole] || { bg: "#f3f4f6", color: "#374151" };
+
+    const defaultScopes: Record<string, string> = {
+      "Super Admin": "Full Root & Infrastructure Access",
+      "SecOps Engineer": "Security Policies & WebAuthn Audit",
+      "Catalog Lead": "Cloudinary & Release Metadata",
+      "Audio Curator": "Playlists Curation & Quality Review",
+      "Infrastructure Eng": "Transcoding Pipeline & Edge CDN Nodes",
+    };
+
+    const scope = u.scope || defaultScopes[displayRole] || "Standard Platform Clearance";
+
+    // Format last active from updatedAt or createdAt
+    let lastActive = "Active now";
+    const ts = u.updatedAt || u.createdAt;
+    if (ts) {
+      const diffMs = Date.now() - new Date(ts).getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffMins < 5) lastActive = "Active now";
+      else if (diffMins < 60) lastActive = `${diffMins} mins ago`;
+      else if (diffHours < 24) lastActive = `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+      else if (diffDays === 1) lastActive = "Yesterday";
+      else lastActive = `${diffDays} days ago`;
+    }
+
+    const currentLoggedInUsername =
+      (session?.user as { username?: string })?.username || session?.user?.name || "";
+    const isCurrent =
+      Boolean(currentLoggedInUsername) &&
+      u.username?.toLowerCase() === currentLoggedInUsername.toLowerCase();
+
+    return {
+      id: u._id?.toString() || u.id || `adm-${Math.random()}`,
+      name: u.username || "Unknown Admin",
+      email: u.email || "",
+      role: displayRole,
+      roleColor: colors.color,
+      scope,
+      mfaStatus: u.verified ? "Verified" : "Pending",
+      lastActive,
+      avatarBg: colors.bg,
+      avatarColor: colors.color,
+      online: isCurrent || displayRole === "Super Admin" || Boolean(u.verified),
+    };
+  };
+
+  // Fetch Administrators from MongoDB User Model
+  const fetchAdmins = async () => {
+    setIsLoadingAdmins(true);
+    try {
+      const res = await fetch("/api/users");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.users)) {
+          const mapped = data.users.map(mapDbUserToAdmin);
+          setAdmins(mapped);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch admins from /api/users (User model):", err);
+    } finally {
+      setIsLoadingAdmins(false);
+    }
+  };
+
   useEffect(() => {
     fetchLiveStorage();
     fetchCatalogSongs();
+    fetchAdmins();
   }, []);
 
   // Admin Invite Modal State
@@ -383,80 +477,92 @@ export default function AdminDashboardPage() {
     });
   };
 
-  const handleInviteAdmin = (e: React.FormEvent) => {
+  const handleInviteAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteName.trim() || !inviteEmail.trim()) {
       showToast("Please provide both name and email.");
       return;
     }
 
-    const roleColors: Record<AdminRole, { bg: string; color: string }> = {
-      "Super Admin": { bg: "#FFF2EB", color: "#A03B00" },
-      "SecOps Engineer": { bg: "#f3e8ff", color: "#7c3aed" },
-      "Catalog Lead": { bg: "#dbeafe", color: "#2563eb" },
-      "Audio Curator": { bg: "#d1fae5", color: "#059669" },
-      "Infrastructure Eng": { bg: "#fef3c7", color: "#d97706" },
-    };
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: inviteName.trim(),
+          email: inviteEmail.trim(),
+          role: inviteRole,
+          scope: inviteScope.trim() || undefined,
+          verified: false,
+        }),
+      });
 
-    const newAdmin: AdminUser = {
-      id: `adm-${Date.now()}`,
-      name: inviteName.trim(),
-      email: inviteEmail.trim(),
-      role: inviteRole,
-      roleColor: roleColors[inviteRole].color,
-      scope: inviteScope.trim() || "Standard Department Access",
-      mfaStatus: "Pending",
-      lastActive: "Invited just now",
-      avatarBg: roleColors[inviteRole].bg,
-      avatarColor: roleColors[inviteRole].color,
-      online: false,
-    };
+      const data = await res.json();
+      if (data.success) {
+        await fetchAdmins();
+        setAuditLogs((prev) => [
+          {
+            id: `aud-${Date.now()}`,
+            actor: authenticatedUsername,
+            role: "Super Admin",
+            action: `Issued administrator invitation to ${inviteName.trim()} (${inviteRole}) in MongoDB`,
+            target: inviteEmail.trim(),
+            ip: "192.168.1.42 (Local)",
+            time: "Just now",
+            status: "success",
+          },
+          ...prev,
+        ]);
 
-    setAdmins((prev) => [newAdmin, ...prev]);
-    setAuditLogs((prev) => [
-      {
-        id: `aud-${Date.now()}`,
-        actor: "Aswin",
-        role: "Super Admin",
-        action: `Issued administrator invitation to ${inviteName.trim()} (${inviteRole})`,
-        target: inviteEmail.trim(),
-        ip: "192.168.1.42 (Local)",
-        time: "Just now",
-        status: "success",
-      },
-      ...prev,
-    ]);
-
-    setIsInviteModalOpen(false);
-    setInviteName("");
-    setInviteEmail("");
-    setInviteScope("");
-    showToast(`Administrator invitation sent to ${inviteEmail}.`);
+        setIsInviteModalOpen(false);
+        setInviteName("");
+        setInviteEmail("");
+        setInviteScope("");
+        showToast(`Administrator invitation sent to ${inviteEmail} and saved in MongoDB.`);
+      } else {
+        showToast(data.error || "Failed to invite administrator.");
+      }
+    } catch {
+      showToast("Network error inviting administrator.");
+    }
   };
 
-  const handleRevokeAdmin = (id: string, name: string) => {
+  const handleRevokeAdmin = async (id: string, name: string) => {
     if (name === "Aswin") {
       showToast("Cannot revoke primary Super Administrator.");
       return;
     }
-    setAdmins((prev) => prev.filter((a) => a.id !== id));
-    setAuditLogs((prev) => [
-      {
-        id: `aud-${Date.now()}`,
-        actor: "Aswin",
-        role: "Super Admin",
-        action: `Revoked console permissions for ${name}`,
-        target: `User ID: ${id}`,
-        ip: "192.168.1.42 (Local)",
-        time: "Just now",
-        status: "warning",
-      },
-      ...prev,
-    ]);
-    showToast(`Revoked console privileges for ${name}.`);
+
+    try {
+      const res = await fetch(`/api/users?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchAdmins();
+        setAuditLogs((prev) => [
+          {
+            id: `aud-${Date.now()}`,
+            actor: authenticatedUsername,
+            role: "Super Admin",
+            action: `Revoked console permissions for ${name}`,
+            target: `User ID: ${id}`,
+            ip: "192.168.1.42 (Local)",
+            time: "Just now",
+            status: "warning",
+          },
+          ...prev,
+        ]);
+        showToast(`Revoked console privileges for ${name} from MongoDB.`);
+      } else {
+        showToast(data.error || "Failed to revoke admin in database.");
+      }
+    } catch {
+      showToast("Network error revoking administrator.");
+    }
   };
 
-  const handleCycleRole = (id: string, currentRole: AdminRole, name: string) => {
+  const handleCycleRole = async (id: string, currentRole: AdminRole, name: string) => {
     if (name === "Aswin") {
       showToast("Primary account retains permanent Super Admin authorization.");
       return;
@@ -471,33 +577,53 @@ export default function AdminDashboardPage() {
     const currentIndex = roles.indexOf(currentRole);
     const nextRole = roles[(currentIndex + 1) % roles.length];
 
-    const roleColors: Record<AdminRole, { bg: string; color: string }> = {
-      "Super Admin": { bg: "#FFF2EB", color: "#A03B00" },
-      "SecOps Engineer": { bg: "#f3e8ff", color: "#7c3aed" },
-      "Catalog Lead": { bg: "#dbeafe", color: "#2563eb" },
-      "Audio Curator": { bg: "#d1fae5", color: "#059669" },
-      "Infrastructure Eng": { bg: "#fef3c7", color: "#d97706" },
-    };
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, role: nextRole }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchAdmins();
+        showToast(`Updated role for ${name} to ${nextRole} in MongoDB.`);
+      } else {
+        showToast(data.error || "Failed to update role in database.");
+      }
+    } catch {
+      showToast("Network error updating role.");
+    }
+  };
 
-    setAdmins((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              role: nextRole,
-              roleColor: roleColors[nextRole].color,
-              avatarBg: roleColors[nextRole].bg,
-              avatarColor: roleColors[nextRole].color,
-            }
-          : a
-      )
-    );
-    showToast(`Updated role for ${name} to ${nextRole}.`);
+  const handleToggleAdmin2FA = async (id: string, isVerified: boolean, name: string) => {
+    try {
+      const nextVerified = !isVerified;
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, verified: nextVerified }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchAdmins();
+        showToast(`2FA security status for ${name} set to ${nextVerified ? "Enforced" : "Pending"}.`);
+      } else {
+        showToast(data.error || "Failed to update 2FA status.");
+      }
+    } catch {
+      showToast("Network error updating 2FA status.");
+    }
   };
 
   const filteredAdmins = admins.filter((admin) => {
+    const roleLower = admin.role.toLowerCase();
+    const filterLower = adminRoleFilter.toLowerCase();
     const matchesFilter =
-      adminRoleFilter === "all" || admin.role.toLowerCase().includes(adminRoleFilter.toLowerCase());
+      adminRoleFilter === "all" ||
+      roleLower.includes(filterLower) ||
+      (filterLower === "super admin" && (roleLower === "admin" || roleLower.includes("super"))) ||
+      (filterLower === "curator" && (roleLower === "subadmin" || roleLower.includes("curator"))) ||
+      (filterLower === "catalog" && (roleLower === "editor" || roleLower.includes("catalog")));
     const matchesSearch =
       admin.name.toLowerCase().includes(adminSearch.toLowerCase()) ||
       admin.email.toLowerCase().includes(adminSearch.toLowerCase()) ||
@@ -513,9 +639,9 @@ export default function AdminDashboardPage() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchLiveStorage(), fetchCatalogSongs()]);
+    await Promise.all([fetchLiveStorage(), fetchCatalogSongs(), fetchAdmins()]);
     setIsRefreshing(false);
-    showToast("Live storage metrics and MongoDB catalog tracks updated.");
+    showToast("Live storage metrics, MongoDB catalog tracks, and platform administrators updated.");
   };
 
   // Audio Playback & Music Player State
@@ -1520,6 +1646,11 @@ export default function AdminDashboardPage() {
                       <span>
                         Showing <strong style={{ color: "#1b1c18" }}>{filteredAdmins.length}</strong> of{" "}
                         <strong style={{ color: "#1b1c18" }}>{admins.length}</strong> admins
+                        {isLoadingAdmins && (
+                          <span style={{ marginLeft: "8px", fontSize: "12px", color: "#A03B00", fontWeight: 600 }}>
+                            • Syncing with MongoDB User Model...
+                          </span>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -1585,7 +1716,9 @@ export default function AdminDashboardPage() {
                       {filteredAdmins.length === 0 ? (
                         <tr>
                           <td colSpan={6} style={{ textAlign: "center", padding: "3rem", color: "#5f5e5e" }}>
-                            No administrators found matching criteria.
+                            {isLoadingAdmins
+                              ? "Fetching platform administrators from MongoDB User model..."
+                              : "No administrators found matching criteria."}
                           </td>
                         </tr>
                       ) : (
@@ -1668,8 +1801,8 @@ export default function AdminDashboardPage() {
                                 <button
                                   type="button"
                                   className={styles.rowActionBtn}
-                                  title="Send 2FA Reset Email"
-                                  onClick={() => showToast(`Sent 2FA reset verification email to ${admin.email}.`)}
+                                  title={admin.mfaStatus === "Verified" ? "Set 2FA status to Pending in MongoDB" : "Enforce 2FA status in MongoDB"}
+                                  onClick={() => handleToggleAdmin2FA(admin.id, admin.mfaStatus === "Verified", admin.name)}
                                 >
                                   <span className="material-symbols-outlined text-[18px]">key</span>
                                 </button>

@@ -16,8 +16,21 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ["admin", "subadmin", "editor"],
+        enum: [
+            "admin",
+            "subadmin",
+            "editor",
+            "Super Admin",
+            "SecOps Engineer",
+            "Catalog Lead",
+            "Audio Curator",
+            "Infrastructure Eng"
+        ],
         default: "subadmin"
+    },
+    scope: {
+        type: String,
+        default: ""
     },
     verified: {
         type: Boolean,
@@ -37,10 +50,21 @@ export interface IUser {
     _id?: mongoose.Types.ObjectId | string;
     username: string;
     email: string;
-    role: "admin" | "subadmin" | "editor";
+    role:
+        | "admin"
+        | "subadmin"
+        | "editor"
+        | "Super Admin"
+        | "SecOps Engineer"
+        | "Catalog Lead"
+        | "Audio Curator"
+        | "Infrastructure Eng"
+        | string;
+    scope?: string;
     verified: boolean;
     createdAt?: Date;
     updatedAt?: Date;
 }
 
 export const User = mongoose.models.User || mongoose.model("User", userSchema);
+
