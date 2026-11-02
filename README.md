@@ -1,14 +1,22 @@
-# TunedIn Admin Console
+<p align="center">
+  <img src="./public/tunedin-logo.png" alt="TunedIn Logo" width="120" />
+</p>
 
-> **Audio Operations, Catalog Ingestion & System Administration Studio**  
-> Part of the **TunedIn** music streaming ecosystem.
+<h1 align="center">TunedIn Admin Console</h1>
 
-![Next.js](https://img.shields.io/badge/Next.js-16.4-black?logo=next.js)
-![React](https://img.shields.io/badge/React-19.3-blue?logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)
-![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose%209.1-green?logo=mongodb)
-![NextAuth](https://img.shields.io/badge/NextAuth.js-4.24-purple?logo=nextdotjs)
-![Port](https://img.shields.io/badge/Port-3001-orange)
+<p align="center">
+  <strong>Audio Operations, Catalog Ingestion & System Administration Studio</strong><br />
+  <em>Part of the <strong>TunedIn</strong> music streaming ecosystem.</em>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-16.4-black?logo=next.js" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-19.3-blue?logo=react" alt="React" />
+  <img src="https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/MongoDB-Mongoose%209.1-green?logo=mongodb" alt="MongoDB" />
+  <img src="https://img.shields.io/badge/NextAuth.js-4.24-purple?logo=nextdotjs" alt="NextAuth" />
+  <img src="https://img.shields.io/badge/Port-3001-orange" alt="Port" />
+</p>
 
 ---
 
@@ -86,8 +94,9 @@ admin/
 │   ├── playlist.model.ts           # Playlist schema (owner, songs, image, duration)
 │   ├── song.model.ts               # Song schema (audio/poster URLs, ISRC, AI observation)
 │   └── user.model.ts               # User schema (username, email, role, verified)
-├── public/                         # Static Assets & SVGs
-│   └── music-logo-orbit.svg        # TunedIn brand mark
+├── public/                         # Static Assets & Logos
+│   ├── music-logo-orbit.svg        # TunedIn animated brand mark
+│   └── tunedin-logo.png            # TunedIn primary app logo
 ├── src/
 │   ├── app/
 │   │   ├── api/auth/
