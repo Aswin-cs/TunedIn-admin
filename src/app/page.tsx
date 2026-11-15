@@ -192,7 +192,7 @@ export default function AdminDashboardPage() {
   const [trackTitle, setTrackTitle] = useState("");
   const [primaryArtist, setPrimaryArtist] = useState("");
   const [albumCollection, setAlbumCollection] = useState("");
-  const [isrc, setIsrc] = useState(`US-TUN-25-${Math.floor(10000 + Math.random() * 90000)}`);
+  const [isrc, setIsrc] = useState("US-TUN-25-84920");
   const [artworkUrl, setArtworkUrl] = useState("");
   const [posterId, setPosterId] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
@@ -456,10 +456,70 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Playlists & Curation State
+  const [playlists, setPlaylists] = useState<any[]>([]);
+  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
+  const [isNewPlaylistModalOpen, setIsNewPlaylistModalOpen] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
+  const [newPlaylistImage, setNewPlaylistImage] = useState("");
+  const [newPlaylistPublic, setNewPlaylistPublic] = useState(true);
+
+  const fetchPlaylists = async () => {
+    setIsLoadingPlaylists(true);
+    try {
+      const res = await fetch("/api/playlists");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.playlists)) {
+          setPlaylists(data.playlists);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch playlists:", err);
+    } finally {
+      setIsLoadingPlaylists(false);
+    }
+  };
+
+  const handleCreatePlaylist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPlaylistName.trim()) {
+      showToast("Please provide a playlist title.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/playlists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newPlaylistName.trim(),
+          description: newPlaylistDesc.trim(),
+          image: newPlaylistImage.trim() || undefined,
+          isPublic: newPlaylistPublic,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Created playlist "${newPlaylistName}"!`);
+        setIsNewPlaylistModalOpen(false);
+        setNewPlaylistName("");
+        setNewPlaylistDesc("");
+        setNewPlaylistImage("");
+        fetchPlaylists();
+      } else {
+        showToast(data.message || "Failed to create playlist.");
+      }
+    } catch {
+      showToast("Error creating playlist.");
+    }
+  };
+
   useEffect(() => {
     fetchLiveStorage();
     fetchCatalogSongs();
     fetchAdmins();
+    fetchPlaylists();
   }, []);
 
   // Admin Invite Modal State
@@ -639,9 +699,9 @@ export default function AdminDashboardPage() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchLiveStorage(), fetchCatalogSongs(), fetchAdmins()]);
+    await Promise.all([fetchLiveStorage(), fetchCatalogSongs(), fetchAdmins(), fetchPlaylists()]);
     setIsRefreshing(false);
-    showToast("Live storage metrics, MongoDB catalog tracks, and platform administrators updated.");
+    showToast("Live storage metrics, catalog tracks, playlists, and administrators updated.");
   };
 
   // Audio Playback & Music Player State
@@ -1191,6 +1251,12 @@ export default function AdminDashboardPage() {
     return matchesTab && matchesQuery;
   });
 
+  // Aggregate metrics
+  const totalStreamsCount = tracks.reduce((acc, t) => {
+    const num = parseInt((t.streams || "0").replace(/,/g, ""), 10);
+    return acc + (isNaN(num) ? 0 : num);
+  }, 0);
+
   // Real Pagination State & Calculations
   const totalPages = Math.max(1, Math.ceil(filteredTracks.length / pageSize));
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
@@ -1198,17 +1264,7 @@ export default function AdminDashboardPage() {
   const endIndex = Math.min(startIndex + pageSize, filteredTracks.length);
   const paginatedTracks = filteredTracks.slice(startIndex, endIndex);
 
-  // Synchronize currentPage if it goes out of bounds when filtered
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [totalPages, currentPage]);
-
-  // Reset page to 1 when search, filter or page size changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, searchQuery, pageSize]);
+  // Safe current page is already clamped between 1 and totalPages
 
   // Master checkbox on current page
   const isAllCurrentPageSelected =
@@ -1317,7 +1373,7 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* SIDEBAR NAVIGATION */}
+            {/* SIDEBAR NAVIGATION */}
       <aside className={styles.sidebar}>
         <div>
           {/* Header */}
@@ -1356,6 +1412,7 @@ export default function AdminDashboardPage() {
               >
                 <span className={`material-symbols-outlined ${styles.navItemIcon}`}>cloud_upload</span>
                 <span>Track Upload</span>
+                <span className={styles.navItemBadge}>Studio</span>
               </button>
 
               <button
@@ -1365,6 +1422,7 @@ export default function AdminDashboardPage() {
               >
                 <span className={`material-symbols-outlined ${styles.navItemIcon}`}>library_music</span>
                 <span>Music Catalog</span>
+                <span className={styles.navItemBadge}>{tracks.length}</span>
               </button>
 
               <button
@@ -1374,6 +1432,7 @@ export default function AdminDashboardPage() {
               >
                 <span className={`material-symbols-outlined ${styles.navItemIcon}`}>queue_music</span>
                 <span>Playlists</span>
+                <span className={styles.navItemBadge}>{playlists.length}</span>
               </button>
 
               <button
@@ -1383,6 +1442,7 @@ export default function AdminDashboardPage() {
               >
                 <span className={`material-symbols-outlined ${styles.navItemIcon}`}>hard_drive</span>
                 <span>Storage &amp; CDN</span>
+                <span className={styles.navItemBadge}>Live</span>
               </button>
 
               <button
@@ -1392,6 +1452,7 @@ export default function AdminDashboardPage() {
               >
                 <span className={`material-symbols-outlined ${styles.navItemIcon}`}>admin_panel_settings</span>
                 <span>Admin Panel</span>
+                <span className={styles.navItemBadge}>{admins.length}</span>
               </button>
 
               <button
@@ -1401,6 +1462,7 @@ export default function AdminDashboardPage() {
               >
                 <span className={`material-symbols-outlined ${styles.navItemIcon}`}>settings</span>
                 <span>Settings</span>
+                <span className={styles.navItemBadge}>v2.4</span>
               </button>
             </nav>
           </div>
@@ -1443,35 +1505,90 @@ export default function AdminDashboardPage() {
 
       {/* CONTENT AREA */}
       <div className={styles.contentArea}>
-        {/* Top Fixed Header */}
+        {/* Top Fixed Header with Breadcrumbs & Contextual Actions */}
         <header className={styles.topHeader}>
-          <div className={styles.searchWrapper}>
-            <span className={`material-symbols-outlined ${styles.searchIcon}`}>search</span>
-            <input
-              type="text"
-              className={styles.searchInput}
-              placeholder={
-                activeNav === "admin-panel"
-                  ? "Search administrators, access scopes, or audit trail..."
-                  : "Search catalog, artists, ISRCs, or storage keys..."
-              }
-              value={activeNav === "admin-panel" ? adminSearch : searchQuery}
-              onChange={(e) =>
-                activeNav === "admin-panel"
-                  ? setAdminSearch(e.target.value)
-                  : setSearchQuery(e.target.value)
-              }
-            />
-            <div className={styles.searchShortcut}>
-              <span>⌘</span>
-              <span>K</span>
+          <div className={styles.headerLeftSection}>
+            <div className={styles.headerBreadcrumb}>
+              <span className={styles.breadcrumbRoot}>TunedIn</span>
+              <span className={styles.breadcrumbSeparator}>/</span>
+              <span className={styles.breadcrumbActive}>
+                {activeNav === "overview-analytics" && "Overview & Analytics"}
+                {activeNav === "track-upload" && "Ingestion Studio"}
+                {activeNav === "music-catalog" && "Music Catalog"}
+                {activeNav === "playlists" && "Playlists & Editorial"}
+                {activeNav === "storage-cdn" && "Storage & Edge CDN"}
+                {activeNav === "admin-panel" && "Admin Access Control"}
+                {activeNav === "settings" && "Console Settings"}
+              </span>
+            </div>
+
+            <div className={styles.searchWrapper}>
+              <span className={`material-symbols-outlined ${styles.searchIcon}`}>search</span>
+              <input
+                type="text"
+                className={styles.searchInput}
+                placeholder={
+                  activeNav === "admin-panel"
+                    ? "Search administrators, access scopes, or audit trail..."
+                    : "Search catalog tracks, artists, ISRCs, or storage keys..."
+                }
+                value={activeNav === "admin-panel" ? adminSearch : searchQuery}
+                onChange={(e) =>
+                  activeNav === "admin-panel"
+                    ? setAdminSearch(e.target.value)
+                    : setSearchQuery(e.target.value)
+                }
+              />
+              <div className={styles.searchShortcut}>
+                <span>⌘</span>
+                <span>K</span>
+              </div>
             </div>
           </div>
 
           <div className={styles.headerRightActions}>
+            <button
+              type="button"
+              className={styles.headerNewReleaseBtn}
+              onClick={() => {
+                setActiveNav("track-upload");
+                handleResetForm();
+              }}
+              title="Open Ingestion Studio for a new release"
+            >
+              <span className="material-symbols-outlined text-[16px]">add_circle</span>
+              <span>+ Ingest Master</span>
+            </button>
+
+            <button
+              type="button"
+              className={styles.refreshBtn}
+              onClick={handleRefresh}
+              title="Fetch latest metrics"
+            >
+              <span
+                className={`material-symbols-outlined text-[16px] ${isRefreshing ? styles.spinAnimation : ""}`}
+                style={{ color: "#5f5e5e" }}
+              >
+                sync
+              </span>
+            </button>
+
             <div className={styles.headerStatusBadge}>
               <span className={styles.headerStatusDot}></span>
-              <span>{activeNav === "admin-panel" ? "Admin Security Active" : "Live System"}</span>
+              <span>Live System • 256-Bit TLS</span>
+            </div>
+
+            <div
+              className={styles.headerUserPill}
+              onClick={() => setActiveNav("admin-panel")}
+              title="Open Admin Profile"
+            >
+              <div className={styles.headerUserAvatar}>{avatarLetter}</div>
+              <span className={styles.headerUserName}>{authenticatedUsername}</span>
+              <span className="material-symbols-outlined text-[14px]" style={{ color: "#8d7166" }}>
+                expand_more
+              </span>
             </div>
           </div>
         </header>
@@ -1482,61 +1599,106 @@ export default function AdminDashboardPage() {
           <div className={styles.ambientGlow1} aria-hidden="true" />
           <div className={styles.ambientGlow2} aria-hidden="true" />
 
-          {activeNav === "admin-panel" ? (
-            <div className={styles.adminPanelWrap}>
-              {/* Telemetry Bar */}
-              <div className={styles.adminTelemetryBar}>
-                <div>
-                  <h1 className={styles.pageTitle}>System Administration &amp; Access Control</h1>
-                  <p className={styles.sectionSubtitle} style={{ marginTop: "4px" }}>
-                    Manage administrative roles, zero-trust policies, and cryptographically verified audit records
+          {/* VIEW 1: OVERVIEW & ANALYTICS */}
+          {activeNav === "overview-analytics" && (
+            <div className={styles.overviewWrapper}>
+              {/* Studio Welcome Banner */}
+              <div className={styles.overviewHeroBanner}>
+                <div className={styles.overviewHeroGlow} />
+                <div className={styles.overviewHeroLeft}>
+                  <div className={styles.overviewHeroTag}>
+                    <span className="material-symbols-outlined text-[14px]">sensors</span>
+                    <span>STUDIO COMMAND CENTER</span>
+                  </div>
+                  <h1 className={styles.overviewHeroTitle}>Welcome back, {authenticatedUsername}</h1>
+                  <p className={styles.overviewHeroSub}>
+                    High-fidelity audio operations, Cloudinary asset pipelines, zero-trust RBAC access control,
+                    and catalog ingestion for the TunedIn streaming network.
                   </p>
                 </div>
-                <div className={styles.telemetryActions}>
+                <div className={styles.overviewHeroActions}>
                   <button
                     type="button"
-                    className={styles.btnPublish}
-                    onClick={() => setIsInviteModalOpen(true)}
+                    className={styles.heroActionBtnPrimary}
+                    onClick={() => {
+                      setActiveNav("track-upload");
+                      handleResetForm();
+                    }}
                   >
-                    <span className="material-symbols-outlined text-[18px]">person_add</span>
-                    <span>Invite Administrator</span>
+                    <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                    <span>+ Ingest Master Track</span>
                   </button>
                   <button
                     type="button"
-                    className={styles.btnSecondary}
-                    onClick={() => {
-                      const dataStr =
-                        "data:text/json;charset=utf-8," +
-                        encodeURIComponent(JSON.stringify(auditLogs, null, 2));
-                      const downloadAnchor = document.createElement("a");
-                      downloadAnchor.setAttribute("href", dataStr);
-                      downloadAnchor.setAttribute(
-                        "download",
-                        `tunedin_audit_log_${new Date().toISOString().slice(0, 10)}.json`
-                      );
-                      document.body.appendChild(downloadAnchor);
-                      downloadAnchor.click();
-                      downloadAnchor.remove();
-                      showToast("Exported JSON audit records successfully.");
-                    }}
+                    className={styles.heroActionBtnSecondary}
+                    onClick={() => setActiveNav("music-catalog")}
                   >
-                    <span className="material-symbols-outlined text-[18px]">download</span>
-                    <span>Export Audit Trail</span>
+                    <span className="material-symbols-outlined text-[18px]">library_music</span>
+                    <span>Browse Catalog</span>
                   </button>
                 </div>
               </div>
 
-              {/* Admin Stat KPI Cards */}
-              <div className={styles.adminStatsGrid}>
-                {/* Stat 1: Total Admins */}
-                <div className={styles.statCard}>
+              {/* 4-Card KPI Stat Grid */}
+              <div className={styles.overviewStatsGrid}>
+                {/* Stat 1: Total Masters */}
+                <div className={styles.statCard} style={{ cursor: "pointer" }} onClick={() => setActiveNav("music-catalog")}>
                   <div>
                     <div className={styles.statHeader}>
-                      <span className={styles.statLabel}>Active Administrators</span>
-                      <span className={styles.statBadge}>
-                        <span className="material-symbols-outlined text-[13px]">shield</span>
-                        Zero-Trust
+                      <span className={styles.statLabel}>Total Music Masters</span>
+                      <span className={styles.statBadge}>MongoDB Catalog</span>
+                    </div>
+                    <div className={styles.statValueRow}>
+                      <span className={styles.statValue}>{trackCounts.all.toLocaleString()}</span>
+                      <span className={styles.statUnit}>tracks</span>
+                    </div>
+                    <div className={styles.statCalloutRow}>
+                      <span style={{ color: "#059669", fontWeight: 600 }}>{trackCounts.verified} Live &amp; Verified</span>
+                      <span style={{ color: "#A03B00", fontWeight: 600 }}>{trackCounts.pending} Pending</span>
+                    </div>
+                  </div>
+                  <div className={styles.statFooter}>
+                    <span>Manage Master Catalog</span>
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </div>
+                </div>
+
+                {/* Stat 2: Cloudinary Audio Storage */}
+                <div className={styles.statCard} style={{ cursor: "pointer" }} onClick={() => setActiveNav("storage-cdn")}>
+                  <div>
+                    <div className={styles.statHeader}>
+                      <span className={styles.statLabel}>Audio Storage Used</span>
+                      <span className={styles.statBadgeAlt}>tunedin/songs</span>
+                    </div>
+                    <div className={styles.statValueRow}>
+                      <span className={styles.statValue}>
+                        {liveStorage ? liveStorage.cloudinary.storageFormatted : "0.00 MB"}
                       </span>
+                      <span className={styles.statUnit}>
+                        / {liveStorage ? `${liveStorage.cloudinary.creditsLimit} Credits` : "25 Credits"}
+                      </span>
+                    </div>
+                    <div className={styles.progressBarTrack}>
+                      <div
+                        className={styles.progressBarFill}
+                        style={{
+                          width: `${liveStorage ? Math.max(0.5, Math.min(100, liveStorage.cloudinary.creditsUsedPercent)) : 0.5}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className={styles.statFooter}>
+                    <span>Inspect Cloudinary Quota</span>
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </div>
+                </div>
+
+                {/* Stat 3: Active Administrators */}
+                <div className={styles.statCard} style={{ cursor: "pointer" }} onClick={() => setActiveNav("admin-panel")}>
+                  <div>
+                    <div className={styles.statHeader}>
+                      <span className={styles.statLabel}>Security &amp; RBAC</span>
+                      <span className={styles.statBadge}>Zero-Trust</span>
                     </div>
                     <div className={styles.statValueRow}>
                       <span className={styles.statValue}>{admins.length}</span>
@@ -1548,573 +1710,304 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
                   <div className={styles.statFooter}>
-                    <span>Role-Based Access Control</span>
-                    <span style={{ fontWeight: 600, color: "#1b1c18" }}>5 Assigned Roles</span>
+                    <span>Admin Access Control</span>
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                   </div>
                 </div>
 
-                {/* Stat 2: Security Clearance */}
+                {/* Stat 4: Total Stream Telemetry */}
                 <div className={styles.statCard}>
                   <div>
                     <div className={styles.statHeader}>
-                      <span className={styles.statLabel}>Security Posture</span>
-                      <span className={styles.statBadgeAlt}>WebAuthn</span>
+                      <span className={styles.statLabel}>Aggregate Streams</span>
+                      <span className={styles.statBadgeAlt}>Lossless 48kHz</span>
                     </div>
                     <div className={styles.statValueRow}>
-                      <span className={styles.statValue}>Tier 1</span>
+                      <span className={styles.statValue}>{totalStreamsCount.toLocaleString()}</span>
+                      <span className={styles.statUnit}>requests</span>
                     </div>
                     <div className={styles.statCalloutRow}>
-                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>Passkey Verification</span>
-                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>Hardware Token</span>
+                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>Edge Delivery</span>
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#059669" }}>Brotli / WebP</span>
                     </div>
                   </div>
                   <div className={styles.statFooter}>
-                    <span>Security Assertion Protocol</span>
-                    <span style={{ color: "#059669", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }} />
-                      Enforced
-                    </span>
-                  </div>
-                </div>
-
-                {/* Stat 3: B2 Storage Tokens */}
-                <div className={styles.statCard}>
-                  <div>
-                    <div className={styles.statHeader}>
-                      <span className={styles.statLabel}>Cloudinary API Tokens</span>
-                      <span className={styles.statBadgeAlt}>Cloudinary</span>
-                    </div>
-                    <div className={styles.statValueRow}>
-                      <span className={styles.statValue}>4</span>
-                      <span className={styles.statUnit}>active keys</span>
-                    </div>
-                    <div className={styles.statCalloutRow}>
-                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>Key Rotation Cycle</span>
-                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>3 Days Ago</span>
-                    </div>
-                  </div>
-                  <div className={styles.statFooter}>
-                    <span>Master FLAC Write Lock</span>
-                    <span style={{ fontWeight: 600, color: "#A03B00" }}>Dual Sign-Off</span>
-                  </div>
-                </div>
-
-                {/* Stat 4: System Edge Latency */}
-                <div className={styles.statCard}>
-                  <div>
-                    <div className={styles.statHeader}>
-                      <span className={styles.statLabel}>Edge Health &amp; Uptime</span>
-                      <span className={styles.statBadge}>
-                        <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                        99.99%
-                      </span>
-                    </div>
-                    <div className={styles.statValueRow}>
-                      <span className={styles.statValue}>22ms</span>
-                      <span className={styles.statUnit}>avg latency</span>
-                    </div>
-                    <div className={styles.statCalloutRow}>
-                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>Anomalous Access</span>
-                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#059669" }}>0 Detected</span>
-                    </div>
-                  </div>
-                  <div className={styles.statFooter}>
-                    <span>Global PoP Locations</span>
-                    <span style={{ fontWeight: 600, color: "#1b1c18" }}>310 Cities Live</span>
+                    <span>Edge Telemetry Active</span>
+                    <span className="material-symbols-outlined text-[14px]">equalizer</span>
                   </div>
                 </div>
               </div>
 
-              {/* SECTION: Administrators Management Table */}
-              <div className={styles.adminCard}>
-                <div className={styles.adminCardHeader}>
-                  <div className={styles.sectionHeaderLeft}>
-                    <div className={styles.sectionIconBadge}>
-                      <span className="material-symbols-outlined text-[20px]">manage_accounts</span>
-                    </div>
-                    <div>
-                      <h2 className={styles.sectionTitle}>Platform Administrators</h2>
-                      <p className={styles.sectionSubtitle}>
-                        Role allocations, hardware 2FA compliance, and delegated access permissions
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className={styles.sectionHeaderRight}>
-                    <div className={styles.autoSaveBadge}>
-                      <span className={styles.autoSaveDot}></span>
-                      <span>
-                        Showing <strong style={{ color: "#1b1c18" }}>{filteredAdmins.length}</strong> of{" "}
-                        <strong style={{ color: "#1b1c18" }}>{admins.length}</strong> admins
-                        {isLoadingAdmins && (
-                          <span style={{ marginLeft: "8px", fontSize: "12px", color: "#A03B00", fontWeight: 600 }}>
-                            • Syncing with MongoDB User Model...
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Filter Controls Bar */}
-                <div className={styles.adminFilterControls}>
-                  <div className={styles.adminRoleTabs}>
-                    {[
-                      { key: "all", label: "All Roles" },
-                      { key: "super admin", label: "Super Admin" },
-                      { key: "secops", label: "SecOps" },
-                      { key: "catalog", label: "Catalog Leads" },
-                      { key: "curator", label: "Curators" },
-                      { key: "infrastructure", label: "Infrastructure" },
-                    ].map((tab) => (
-                      <button
-                        key={tab.key}
-                        type="button"
-                        className={`${styles.adminRoleTabBtn} ${adminRoleFilter === tab.key ? styles.adminRoleTabBtnActive : ""}`}
-                        onClick={() => setAdminRoleFilter(tab.key)}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className={styles.adminSearchInputWrapper}>
-                    <span className="material-symbols-outlined text-[16px]" style={{ color: "#5f5e5e" }}>search</span>
-                    <input
-                      type="text"
-                      className={styles.adminSearchInputField}
-                      placeholder="Filter by name, email, or role..."
-                      value={adminSearch}
-                      onChange={(e) => setAdminSearch(e.target.value)}
-                    />
-                    {adminSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setAdminSearch("")}
-                        style={{ border: "none", background: "none", cursor: "pointer", color: "#5f5e5e" }}
-                      >
-                        <span className="material-symbols-outlined text-[14px]">close</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Table */}
-                <div className={styles.tableScrollWrapper}>
-                  <table className={styles.catalogTable}>
-                    <thead>
-                      <tr className={styles.tableHeaderRow}>
-                        <th className={styles.thCell} style={{ paddingLeft: "1.5rem" }}>Administrator</th>
-                        <th className={styles.thCell}>Assigned Role</th>
-                        <th className={styles.thCell}>Security (2FA)</th>
-                        <th className={styles.thCell}>Delegated Privileges Scope</th>
-                        <th className={styles.thCell}>Last Active</th>
-                        <th className={styles.thCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAdmins.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} style={{ textAlign: "center", padding: "3rem", color: "#5f5e5e" }}>
-                            {isLoadingAdmins
-                              ? "Fetching platform administrators from MongoDB User model..."
-                              : "No administrators found matching criteria."}
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredAdmins.map((admin) => (
-                          <tr key={admin.id} className={styles.tableBodyRow}>
-                            <td className={styles.tdCell} style={{ paddingLeft: "1.5rem" }}>
-                              <div className={styles.adminUserCell}>
-                                <div
-                                  className={styles.adminUserAvatar}
-                                  style={{ backgroundColor: admin.avatarBg, color: admin.avatarColor, position: "relative" }}
-                                >
-                                  {admin.name.charAt(0)}
-                                  {admin.online && (
-                                    <span
-                                      style={{
-                                        position: "absolute",
-                                        bottom: "-1px",
-                                        right: "-1px",
-                                        width: "8px",
-                                        height: "8px",
-                                        borderRadius: "50%",
-                                        backgroundColor: "#10b981",
-                                        border: "1.5px solid #ffffff",
-                                      }}
-                                    />
-                                  )}
-                                </div>
-                                <div>
-                                  <div className={styles.adminUserName}>{admin.name}</div>
-                                  <div className={styles.adminUserEmail}>{admin.email}</div>
-                                </div>
-                              </div>
-                            </td>
-
-                            <td className={styles.tdCell}>
-                              <span
-                                className={styles.roleBadgePill}
-                                style={{
-                                  backgroundColor: admin.avatarBg,
-                                  color: admin.roleColor,
-                                  border: `1px solid ${admin.roleColor}40`,
-                                }}
-                              >
-                                {admin.role}
-                              </span>
-                            </td>
-
-                            <td className={styles.tdCell}>
-                              {admin.mfaStatus === "Verified" ? (
-                                <span className={styles.mfaBadgeVerified}>
-                                  <span className="material-symbols-outlined text-[13px]">verified_user</span>
-                                  2FA Enforced
-                                </span>
-                              ) : (
-                                <span className={styles.mfaBadgePending}>
-                                  <span className="material-symbols-outlined text-[13px]">pending</span>
-                                  Pending Setup
-                                </span>
-                              )}
-                            </td>
-
-                            <td className={styles.tdCell} style={{ color: "#5f5e5e", fontSize: "13px" }}>
-                              {admin.scope}
-                            </td>
-
-                            <td className={styles.tdCell} style={{ fontSize: "12px", color: "#5f5e5e", fontFamily: "Space Grotesk, sans-serif" }}>
-                              {admin.lastActive}
-                            </td>
-
-                            <td className={styles.tdCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>
-                              <div className={styles.rowActions}>
-                                <button
-                                  type="button"
-                                  className={styles.rowActionBtn}
-                                  title="Cycle / Reassign Role"
-                                  onClick={() => handleCycleRole(admin.id, admin.role, admin.name)}
-                                >
-                                  <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className={styles.rowActionBtn}
-                                  title={admin.mfaStatus === "Verified" ? "Set 2FA status to Pending in MongoDB" : "Enforce 2FA status in MongoDB"}
-                                  onClick={() => handleToggleAdmin2FA(admin.id, admin.mfaStatus === "Verified", admin.name)}
-                                >
-                                  <span className="material-symbols-outlined text-[18px]">key</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`${styles.rowActionBtn} ${styles.rowActionBtnDanger}`}
-                                  title="Revoke Admin Access"
-                                  onClick={() => handleRevokeAdmin(admin.id, admin.name)}
-                                >
-                                  <span className="material-symbols-outlined text-[18px]">person_remove</span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* SECTION: Security & System Policies */}
-              <div className={styles.adminCard}>
-                <div className={styles.adminCardHeader}>
-                  <div className={styles.sectionHeaderLeft}>
-                    <div className={styles.sectionIconBadge}>
-                      <span className="material-symbols-outlined text-[20px]">security</span>
-                    </div>
-                    <div>
-                      <h2 className={styles.sectionTitle}>Security Policies &amp; System Controls</h2>
-                      <p className={styles.sectionSubtitle}>
-                        Cryptographic enforcement, Cloudinary asset protection, and multi-region CDN caching
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className={styles.policyGrid}>
-                  {/* Policy 1 */}
-                  <div className={styles.policyCard}>
-                    <div>
-                      <div className={styles.policyCardHeader}>
-                        <h3 className={styles.policyCardTitle}>Strict WebAuthn / Passkeys</h3>
-                        <label className={styles.switchLabel}>
-                          <input
-                            type="checkbox"
-                            className={styles.switchInput}
-                            checked={securityPolicies.strictMfa}
-                            onChange={() => handleTogglePolicy("strictMfa", "Strict WebAuthn")}
-                          />
-                          <span className={styles.switchSlider}></span>
-                        </label>
-                      </div>
-                      <p className={styles.policyCardDesc}>
-                        Requires biometric authentication (TouchID, FaceID, or YubiKey) for all administrative sessions.
-                      </p>
-                    </div>
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.strictMfa ? "#059669" : "#5f5e5e" }}>
-                      {securityPolicies.strictMfa ? "Active Enforcement" : "Optional"}
-                    </span>
-                  </div>
-
-                  {/* Policy 2 */}
-                  <div className={styles.policyCard}>
-                    <div>
-                      <div className={styles.policyCardHeader}>
-                        <h3 className={styles.policyCardTitle}>Master Audio Write Lock</h3>
-                        <label className={styles.switchLabel}>
-                          <input
-                            type="checkbox"
-                            className={styles.switchInput}
-                            checked={securityPolicies.b2WriteLock}
-                            onChange={() => handleTogglePolicy("b2WriteLock", "Master Audio Write Lock")}
-                          />
-                          <span className={styles.switchSlider}></span>
-                        </label>
-                      </div>
-                      <p className={styles.policyCardDesc}>
-                        Prevents unapproved deletion or replacement of studio audio files in Cloudinary.
-                      </p>
-                    </div>
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.b2WriteLock ? "#A03B00" : "#5f5e5e" }}>
-                      {securityPolicies.b2WriteLock ? "Dual Sign-Off Locked" : "Unlocked"}
-                    </span>
-                  </div>
-
-                  {/* Policy 3 */}
-                  <div className={styles.policyCard}>
-                    <div>
-                      <div className={styles.policyCardHeader}>
-                        <h3 className={styles.policyCardTitle}>Live Edge Invalidation</h3>
-                        <label className={styles.switchLabel}>
-                          <input
-                            type="checkbox"
-                            className={styles.switchInput}
-                            checked={securityPolicies.edgeInvalidation}
-                            onChange={() => handleTogglePolicy("edgeInvalidation", "Live Edge Invalidation")}
-                          />
-                          <span className={styles.switchSlider}></span>
-                        </label>
-                      </div>
-                      <p className={styles.policyCardDesc}>
-                        Automatically purges CDN edge caches worldwide within 500ms of catalog and audio updates.
-                      </p>
-                    </div>
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.edgeInvalidation ? "#059669" : "#5f5e5e" }}>
-                      {securityPolicies.edgeInvalidation ? "Sub-second Sync Enabled" : "Manual Flush"}
-                    </span>
-                  </div>
-
-                  {/* Policy 4 */}
-                  <div className={styles.policyCard}>
-                    <div>
-                      <div className={styles.policyCardHeader}>
-                        <h3 className={styles.policyCardTitle}>Encrypted DB Snapshots</h3>
-                        <label className={styles.switchLabel}>
-                          <input
-                            type="checkbox"
-                            className={styles.switchInput}
-                            checked={securityPolicies.dbSnapshots}
-                            onChange={() => handleTogglePolicy("dbSnapshots", "Encrypted DB Snapshots")}
-                          />
-                          <span className={styles.switchSlider}></span>
-                        </label>
-                      </div>
-                      <p className={styles.policyCardDesc}>
-                        Captures hourly Zstandard compressed and AES-256 encrypted database state snapshots.
-                      </p>
-                    </div>
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.dbSnapshots ? "#059669" : "#5f5e5e" }}>
-                      {securityPolicies.dbSnapshots ? "Hourly Automatic Backup" : "Disabled"}
-                    </span>
-                  </div>
-
-                  {/* Policy 5 */}
-                  <div className={styles.policyCard}>
-                    <div>
-                      <div className={styles.policyCardHeader}>
-                        <h3 className={styles.policyCardTitle}>Public Maintenance Mode</h3>
-                        <label className={styles.switchLabel}>
-                          <input
-                            type="checkbox"
-                            className={styles.switchInput}
-                            checked={securityPolicies.maintenanceMode}
-                            onChange={() => handleTogglePolicy("maintenanceMode", "Maintenance Mode")}
-                          />
-                          <span className={styles.switchSlider}></span>
-                        </label>
-                      </div>
-                      <p className={styles.policyCardDesc}>
-                        Suspends public streaming client endpoints and returns HTTP 503 for all unauthenticated listener clients.
-                      </p>
-                    </div>
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.maintenanceMode ? "#A03B00" : "#059669" }}>
-                      {securityPolicies.maintenanceMode ? "System Paused (Maintenance)" : "Normal Operations"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION: Live Security Audit Trail */}
-              <div className={styles.adminCard}>
-                <div className={styles.adminCardHeader}>
-                  <div className={styles.sectionHeaderLeft}>
-                    <div className={styles.sectionIconBadge}>
-                      <span className="material-symbols-outlined text-[20px]">history</span>
-                    </div>
-                    <div>
-                      <h2 className={styles.sectionTitle}>Live Security Audit Trail</h2>
-                      <p className={styles.sectionSubtitle}>
-                        Append-only cryptographic timeline of system configuration and administrative events
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className={styles.auditList}>
-                  {auditLogs.map((log) => (
-                    <div key={log.id} className={styles.auditItem}>
-                      <div className={styles.auditItemLeft}>
-                        <span className={styles.auditActorBadge}>{log.actor}</span>
+              {/* Dual Column Command Center */}
+              <div className={styles.overviewDualGrid}>
+                {/* Left Column: Recent Releases & Quick Ingestion */}
+                <div className={styles.overviewLeftCol}>
+                  {/* Recent Tracks Card */}
+                  <div className={styles.overviewCard}>
+                    <div className={styles.overviewCardHeader}>
+                      <div className={styles.overviewCardTitleRow}>
+                        <div className={styles.overviewCardIconBadge}>
+                          <span className="material-symbols-outlined text-[20px]">library_music</span>
+                        </div>
                         <div>
-                          <div className={styles.auditActionText}>{log.action}</div>
-                          <div className={styles.auditTarget}>{log.target}</div>
+                          <h3 className={styles.overviewCardTitle}>Recent Master Releases</h3>
+                          <p className={styles.overviewCardSubtitle}>Latest audio recordings staged in MongoDB catalog</p>
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        className={styles.overviewCardActionLink}
+                        onClick={() => setActiveNav("music-catalog")}
+                      >
+                        <span>View All ({tracks.length})</span>
+                        <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                      </button>
+                    </div>
 
-                      <div className={styles.auditMetaRight}>
-                        <span style={{ fontFamily: "Space Grotesk, sans-serif" }}>{log.ip}</span>
-                        <span>•</span>
-                        <span>{log.time}</span>
-                        <span
-                          style={{
-                            width: "6px",
-                            height: "6px",
-                            borderRadius: "50%",
-                            backgroundColor: log.status === "success" ? "#10b981" : "#A03B00",
-                          }}
-                        />
+                    <div className={styles.overviewTracksList}>
+                      {tracks.slice(0, 5).map((track) => (
+                        <div key={track.id} className={styles.overviewTrackItem}>
+                          <div className={styles.overviewTrackLeft}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={track.artworkUrl}
+                              alt={track.title}
+                              className={styles.overviewTrackArtwork}
+                            />
+                            <div className={styles.overviewTrackMeta}>
+                              <span className={styles.overviewTrackTitle}>{track.title}</span>
+                              <span className={styles.overviewTrackArtist}>
+                                {track.artist} • {track.album}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className={styles.overviewTrackRight}>
+                            <span className={styles.overviewTrackStreams}>{track.duration}</span>
+                            <span
+                              className={
+                                track.status === "live"
+                                  ? styles.badgeLive
+                                  : track.status === "processing"
+                                  ? styles.badgeProcessing
+                                  : styles.badgeDraft
+                              }
+                            >
+                              {track.status === "live" ? "Live" : track.statusText}
+                            </span>
+                            <button
+                              type="button"
+                              className={styles.overviewTrackPlayBtn}
+                              title="Preview track audio"
+                              onClick={() => handlePlayTrackFromCatalog(track)}
+                            >
+                              <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {tracks.length === 0 && (
+                        <div style={{ padding: "2rem", textAlign: "center", color: "#737373", fontSize: "14px" }}>
+                          No master tracks found in catalog. Ingest a release to get started!
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={styles.overviewCardFooter}>
+                      <button
+                        type="button"
+                        className={styles.overviewCardFooterLink}
+                        onClick={() => setActiveNav("music-catalog")}
+                      >
+                        <span>Browse all {tracks.length} master recordings in Catalog</span>
+                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Ingestion Studio Callout Banner */}
+                  <div className={styles.overviewIngestBanner}>
+                    <div className={styles.overviewIngestLeft}>
+                      <div className={styles.overviewIngestIcon}>
+                        <span className="material-symbols-outlined text-[24px]">graphic_eq</span>
+                      </div>
+                      <div className={styles.overviewIngestText}>
+                        <h3>Ingest a New Lossless Master Recording</h3>
+                        <p>
+                          Stage 1:1 vinyl cover art, extract dominant chroma swatches, preview 55-bar Web Audio
+                          waveforms, and generate verified ISRC codes for immediate Cloudinary deployment.
+                        </p>
                       </div>
                     </div>
-                  ))}
+                    <button
+                      type="button"
+                      className={styles.heroActionBtnPrimary}
+                      onClick={() => {
+                        setActiveNav("track-upload");
+                        handleResetForm();
+                      }}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">cloud_upload</span>
+                      <span>Open Ingestion Studio</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Telemetry Header */}
-              <div className={styles.telemetryBar}>
-            <div>
-              <h1 className={styles.pageTitle}>Audio Operations &amp; Catalog Ingestion</h1>
-            </div>
-            <div className={styles.telemetryActions}>
-              <button
-                type="button"
-                className={styles.refreshBtn}
-                onClick={handleRefresh}
-                title="Fetch latest metrics"
-              >
-                <span
-                  className={`material-symbols-outlined text-[16px] ${isRefreshing ? styles.spinAnimation : ""}`}
-                  style={{ color: "#5f5e5e" }}
-                >
-                  sync
-                </span>
-                <span>Refresh Metrics</span>
-              </button>
-            </div>
-          </div>
 
-          {/* SECTION A: Storage & CDN Stat Cards */}
-          <section className={styles.statsGrid}>
-            {/* Card 1: Cloudinary Audio Storage */}
-            <div className={styles.statCard}>
-              <div>
-                <div className={styles.statHeader}>
-                  <span className={styles.statLabel}>Total Audio Uploads</span>
-                  <span className={styles.statBadgeAlt}>
-                    Cloudinary (tunedin/songs)
-                  </span>
+                {/* Right Column: Telemetry & Activity Widgets */}
+                <div className={styles.overviewRightCol}>
+                  {/* Storage & CDN Health Card */}
+                  <div className={styles.overviewCard}>
+                    <div className={styles.overviewCardHeader}>
+                      <div className={styles.overviewCardTitleRow}>
+                        <div className={styles.overviewCardIconBadge}>
+                          <span className="material-symbols-outlined text-[20px]">hard_drive</span>
+                        </div>
+                        <div>
+                          <h3 className={styles.overviewCardTitle}>Storage &amp; CDN Status</h3>
+                          <p className={styles.overviewCardSubtitle}>Cloudinary asset infrastructure</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.overviewCardActionLink}
+                        onClick={() => setActiveNav("storage-cdn")}
+                      >
+                        <span>Details</span>
+                        <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                      </button>
+                    </div>
+
+                    <div style={{ padding: "1rem 1.5rem", display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px" }}>
+                        <span style={{ color: "#737373" }}>Plan Tier:</span>
+                        <strong style={{ color: "#1a1a1a" }}>{liveStorage ? liveStorage.cloudinary.plan : "Standard (Free)"}</strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px" }}>
+                        <span style={{ color: "#737373" }}>Audio Assets:</span>
+                        <strong style={{ color: "#1a1a1a", fontFamily: "Space Grotesk, monospace" }}>
+                          {liveStorage ? liveStorage.cloudinary.objectsCount : tracks.length} files
+                        </strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px" }}>
+                        <span style={{ color: "#737373" }}>Bandwidth Delivered:</span>
+                        <strong style={{ color: "#A03B00", fontFamily: "Space Grotesk, monospace" }}>
+                          {liveStorage ? liveStorage.cloudinary.bandwidthFormatted : "0.00 KB"}
+                        </strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px" }}>
+                        <span style={{ color: "#737373" }}>Transformations:</span>
+                        <strong style={{ color: "#1a1a1a", fontFamily: "Space Grotesk, monospace" }}>
+                          {liveStorage ? liveStorage.cloudinary.transformations : 0}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className={styles.overviewCardFooter}>
+                      <button
+                        type="button"
+                        className={styles.overviewCardFooterLink}
+                        onClick={() => setActiveNav("storage-cdn")}
+                      >
+                        <span>Inspect CDN &amp; Storage Quotas</span>
+                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Recent Audit Trail Card */}
+                  <div className={styles.overviewCard}>
+                    <div className={styles.overviewCardHeader}>
+                      <div className={styles.overviewCardTitleRow}>
+                        <div className={styles.overviewCardIconBadge}>
+                          <span className="material-symbols-outlined text-[20px]">shield</span>
+                        </div>
+                        <div>
+                          <h3 className={styles.overviewCardTitle}>Zero-Trust Audit Log</h3>
+                          <p className={styles.overviewCardSubtitle}>Recent administrative activity</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.overviewCardActionLink}
+                        onClick={() => setActiveNav("admin-panel")}
+                      >
+                        <span>Audit Log</span>
+                        <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                      </button>
+                    </div>
+
+                    <div className={styles.miniAuditList}>
+                      {auditLogs.slice(0, 3).map((log) => (
+                        <div key={log.id} className={styles.miniAuditItem}>
+                          <div className={styles.miniAuditTop}>
+                            <span className={styles.miniAuditActor}>{log.actor} ({log.role})</span>
+                            <span className={styles.miniAuditTime}>{log.time}</span>
+                          </div>
+                          <span className={styles.miniAuditAction}>{log.action}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className={styles.overviewCardFooter}>
+                      <button
+                        type="button"
+                        className={styles.overviewCardFooterLink}
+                        onClick={() => setActiveNav("admin-panel")}
+                      >
+                        <span>Open Admin Security Panel</span>
+                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* System Diagnostics Card */}
+                  <div className={styles.overviewCard}>
+                    <div className={styles.overviewCardHeader}>
+                      <div className={styles.overviewCardTitleRow}>
+                        <div className={styles.overviewCardIconBadge}>
+                          <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                        </div>
+                        <div>
+                          <h3 className={styles.overviewCardTitle}>System Diagnostics</h3>
+                          <p className={styles.overviewCardSubtitle}>Console runtime integrity</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={styles.diagList}>
+                      <div className={styles.diagItem}>
+                        <div className={styles.diagItemLabel}>
+                          <span className="material-symbols-outlined text-[16px]" style={{ color: "#059669" }}>verified_user</span>
+                          <span>NextAuth 256-Bit TLS</span>
+                        </div>
+                        <span className={styles.diagItemBadge}>Active</span>
+                      </div>
+
+                      <div className={styles.diagItem}>
+                        <div className={styles.diagItemLabel}>
+                          <span className="material-symbols-outlined text-[16px]" style={{ color: "#059669" }}>database</span>
+                          <span>MongoDB Connection</span>
+                        </div>
+                        <span className={styles.diagItemBadge}>Connected</span>
+                      </div>
+
+                      <div className={styles.diagItem}>
+                        <div className={styles.diagItemLabel}>
+                          <span className="material-symbols-outlined text-[16px]" style={{ color: "#059669" }}>graphic_eq</span>
+                          <span>Web Audio Synthesis</span>
+                        </div>
+                        <span className={styles.diagItemBadge}>Ready</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className={styles.statValueRow}>
-                  <span className={styles.statValue}>
-                    {liveStorage ? liveStorage.cloudinary.storageFormatted : "0.00 MB"}
-                  </span>
-                  <span className={styles.statUnit}>
-                    / {liveStorage ? `${liveStorage.cloudinary.creditsLimit} Credits` : "25 Credits"}
-                  </span>
-                </div>
-                <div className={styles.progressBarTrack}>
-                  <div
-                    className={styles.progressBarFill}
-                    style={{
-                      width: `${liveStorage ? Math.max(0.5, Math.min(100, liveStorage.cloudinary.creditsUsedPercent)) : 0.5}%`,
-                    }}
-                  />
-                </div>
-              </div>
-              <div className={styles.statFooter}>
-                <span>
-                  {liveStorage
-                    ? `${liveStorage.cloudinary.objectsCount} media assets (${liveStorage.cloudinary.creditsUsedPercent}% pool)`
-                    : "0 audio files stored"}
-                </span>
-                <span style={{ color: "#A03B00", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }}></span>
-                  {liveStorage ? "Cloudinary Live • tunedin/songs" : "Cloudinary Live"}
-                </span>
               </div>
             </div>
+          )}
 
-            {/* Card 2: Poster CDN & Image Storage */}
-            <div className={styles.statCard}>
-              <div>
-                <div className={styles.statHeader}>
-                  <span className={styles.statLabel}>Poster CDN Bandwidth</span>
-                  <span className={styles.statBadge}>
-                    <span className="material-symbols-outlined text-[13px]">cloud_done</span>
-                    Cloudinary ({liveStorage?.cloudinary.plan || "Free"})
-                  </span>
-                </div>
-                <div className={styles.statValueRow}>
-                  <span className={styles.statValue}>
-                    {liveStorage ? liveStorage.cloudinary.bandwidthFormatted : "177.53 MB"}
-                  </span>
-                </div>
-                <div className={styles.statCalloutRow}>
-                  <span style={{ color: "#5f5e5e", fontWeight: 500 }}>
-                    Stored Artwork: {liveStorage ? liveStorage.cloudinary.storageFormatted : "12.64 MB"}
-                  </span>
-                  <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>
-                    {liveStorage ? `${liveStorage.cloudinary.objectsCount} assets` : "42 assets"}
-                  </span>
-                </div>
-              </div>
-              <div className={styles.statFooter}>
-                <span>
-                  {liveStorage
-                    ? `${liveStorage.cloudinary.transformations} Transformations Executed`
-                    : "Cloudinary Media Engine"}
-                </span>
-                <span style={{ fontWeight: 600, color: "#1b1c18" }}>
-                  {liveStorage
-                    ? `${liveStorage.cloudinary.creditsUsed} / ${liveStorage.cloudinary.creditsLimit} Credits (${liveStorage.cloudinary.creditsUsedPercent}%)`
-                    : "Brotli WebP"}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {/* SECTION B: Release & Asset Ingestion Studio */}
-          <section id="ingestion-section" className={styles.studioSection}>
+          {/* VIEW 2: TRACK UPLOAD (INGESTION STUDIO) */}
+          {activeNav === "track-upload" && (
+            <section id="ingestion-section" className={styles.studioSection}>
             {/* Header */}
             <div className={styles.sectionHeader}>
               <div className={styles.sectionHeaderLeft}>
@@ -2822,9 +2715,11 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           </section>
+          )}
 
-          {/* SECTION C: Music Catalog Data Table */}
-          <section className={styles.catalogSection}>
+          {/* VIEW 3: MUSIC CATALOG */}
+          {activeNav === "music-catalog" && (
+            <section className={styles.catalogSection}>
             <div className={styles.catalogControls}>
               {/* Category Filter Tabs */}
               <div className={styles.filterTabs}>
@@ -3254,12 +3149,1264 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           </section>
-            </>
           )}
+
+          {/* VIEW 4: PLAYLISTS & EDITORIAL CURATION */}
+          {activeNav === "playlists" && (
+            <div className={styles.playlistsWrapper}>
+              <div className={styles.telemetryBar}>
+                <div>
+                  <h1 className={styles.pageTitle}>Playlists &amp; Editorial Curation</h1>
+                  <p className={styles.sectionSubtitle} style={{ marginTop: "4px" }}>
+                    Curate featured collections, algorithm playlists, and station mixes for listener clients
+                  </p>
+                </div>
+                <div className={styles.telemetryActions}>
+                  <button
+                    type="button"
+                    className={styles.btnPublish}
+                    onClick={() => setIsNewPlaylistModalOpen(true)}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">add</span>
+                    <span>+ New Curated Playlist</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.refreshBtn}
+                    onClick={fetchPlaylists}
+                    title="Refresh playlists"
+                  >
+                    <span
+                      className={`material-symbols-outlined text-[16px] ${isLoadingPlaylists ? styles.spinAnimation : ""}`}
+                      style={{ color: "#5f5e5e" }}
+                    >
+                      sync
+                    </span>
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Playlists KPI Cards */}
+              <div className={styles.adminStatsGrid}>
+                <div className={styles.statCard}>
+                  <div className={styles.statHeader}>
+                    <span className={styles.statLabel}>Total Playlists</span>
+                    <span className={styles.statBadge}>Editorial</span>
+                  </div>
+                  <div className={styles.statValueRow}>
+                    <span className={styles.statValue}>{playlists.length}</span>
+                    <span className={styles.statUnit}>collections</span>
+                  </div>
+                  <div className={styles.statCalloutRow}>
+                    <span style={{ color: "#059669", fontWeight: 600 }}>Active in client library</span>
+                  </div>
+                </div>
+
+                <div className={styles.statCard}>
+                  <div className={styles.statHeader}>
+                    <span className={styles.statLabel}>Public Visibility</span>
+                    <span className={styles.statBadgeAlt}>Listener Discoverable</span>
+                  </div>
+                  <div className={styles.statValueRow}>
+                    <span className={styles.statValue}>{playlists.filter((p) => p.isPublic).length}</span>
+                    <span className={styles.statUnit}>/ {playlists.length} public</span>
+                  </div>
+                  <div className={styles.statCalloutRow}>
+                    <span style={{ color: "#5f5e5e" }}>Published to discover grid</span>
+                  </div>
+                </div>
+
+                <div className={styles.statCard}>
+                  <div className={styles.statHeader}>
+                    <span className={styles.statLabel}>Curated Tracks Included</span>
+                    <span className={styles.statBadge}>Catalog Links</span>
+                  </div>
+                  <div className={styles.statValueRow}>
+                    <span className={styles.statValue}>
+                      {playlists.reduce(
+                        (acc, p) => acc + (p.songsCount || (Array.isArray(p.songs) ? p.songs.length : 0)),
+                        0
+                      )}
+                    </span>
+                    <span className={styles.statUnit}>master tracks</span>
+                  </div>
+                  <div className={styles.statCalloutRow}>
+                    <span style={{ color: "#A03B00", fontWeight: 600 }}>Lossless Stream Linked</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Playlists Grid */}
+              <div className={styles.playlistsGrid}>
+                {playlists.map((playlist) => (
+                  <div key={playlist._id} className={styles.playlistCard}>
+                    <div className={styles.playlistCoverWrap}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={playlist.image}
+                        alt={playlist.name}
+                        className={styles.playlistCoverImg}
+                      />
+                      <div className={styles.playlistCoverOverlay}>
+                        <span className={styles.playlistVisibilityBadge}>
+                          {playlist.isPublic ? "Public" : "Draft / Internal"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className={styles.playlistBody}>
+                      <h3 className={styles.playlistTitle}>{playlist.name}</h3>
+                      <p className={styles.playlistDesc}>{playlist.description}</p>
+
+                      <div className={styles.playlistFooter}>
+                        <div className={styles.playlistStats}>
+                          <span className="material-symbols-outlined text-[16px]">library_music</span>
+                          <span>
+                            {playlist.songsCount || (Array.isArray(playlist.songs) ? playlist.songs.length : 0)} tracks
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className={styles.playlistActionBtn}
+                          onClick={() => showToast(`Opened playlist curation for "${playlist.name}"`)}
+                        >
+                          <span className="material-symbols-outlined text-[15px]">edit</span>
+                          <span>Manage</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 5: STORAGE & EDGE CDN TELEMETRY */}
+          {activeNav === "storage-cdn" && (
+            <div className={styles.storageWrapper}>
+              <div className={styles.telemetryBar}>
+                <div>
+                  <h1 className={styles.pageTitle}>Cloudinary Storage &amp; Edge CDN Telemetry</h1>
+                  <p className={styles.sectionSubtitle} style={{ marginTop: "4px" }}>
+                    Inspect lossless master asset storage, transformation quotas, bandwidth delivery, and edge caching
+                  </p>
+                </div>
+                <div className={styles.telemetryActions}>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={() => {
+                      showToast("Cloudflare & Edge CDN cache purged successfully.");
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">cached</span>
+                    <span>Purge Edge Cache</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.refreshBtn}
+                    onClick={handleRefresh}
+                    title="Fetch latest storage metrics"
+                  >
+                    <span
+                      className={`material-symbols-outlined text-[16px] ${isRefreshing ? styles.spinAnimation : ""}`}
+                      style={{ color: "#5f5e5e" }}
+                    >
+                      sync
+                    </span>
+                    <span>Sync Storage</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Section A: Storage Stats Cards */}
+              {/* SECTION A: Storage & CDN Stat Cards */}
+          <section className={styles.statsGrid}>
+            {/* Card 1: Cloudinary Audio Storage */}
+            <div className={styles.statCard}>
+              <div>
+                <div className={styles.statHeader}>
+                  <span className={styles.statLabel}>Total Audio Uploads</span>
+                  <span className={styles.statBadgeAlt}>
+                    Cloudinary (tunedin/songs)
+                  </span>
+                </div>
+                <div className={styles.statValueRow}>
+                  <span className={styles.statValue}>
+                    {liveStorage ? liveStorage.cloudinary.storageFormatted : "0.00 MB"}
+                  </span>
+                  <span className={styles.statUnit}>
+                    / {liveStorage ? `${liveStorage.cloudinary.creditsLimit} Credits` : "25 Credits"}
+                  </span>
+                </div>
+                <div className={styles.progressBarTrack}>
+                  <div
+                    className={styles.progressBarFill}
+                    style={{
+                      width: `${liveStorage ? Math.max(0.5, Math.min(100, liveStorage.cloudinary.creditsUsedPercent)) : 0.5}%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <div className={styles.statFooter}>
+                <span>
+                  {liveStorage
+                    ? `${liveStorage.cloudinary.objectsCount} media assets (${liveStorage.cloudinary.creditsUsedPercent}% pool)`
+                    : "0 audio files stored"}
+                </span>
+                <span style={{ color: "#A03B00", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }}></span>
+                  {liveStorage ? "Cloudinary Live • tunedin/songs" : "Cloudinary Live"}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 2: Poster CDN & Image Storage */}
+            <div className={styles.statCard}>
+              <div>
+                <div className={styles.statHeader}>
+                  <span className={styles.statLabel}>Poster CDN Bandwidth</span>
+                  <span className={styles.statBadge}>
+                    <span className="material-symbols-outlined text-[13px]">cloud_done</span>
+                    Cloudinary ({liveStorage?.cloudinary.plan || "Free"})
+                  </span>
+                </div>
+                <div className={styles.statValueRow}>
+                  <span className={styles.statValue}>
+                    {liveStorage ? liveStorage.cloudinary.bandwidthFormatted : "177.53 MB"}
+                  </span>
+                </div>
+                <div className={styles.statCalloutRow}>
+                  <span style={{ color: "#5f5e5e", fontWeight: 500 }}>
+                    Stored Artwork: {liveStorage ? liveStorage.cloudinary.storageFormatted : "12.64 MB"}
+                  </span>
+                  <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>
+                    {liveStorage ? `${liveStorage.cloudinary.objectsCount} assets` : "42 assets"}
+                  </span>
+                </div>
+              </div>
+              <div className={styles.statFooter}>
+                <span>
+                  {liveStorage
+                    ? `${liveStorage.cloudinary.transformations} Transformations Executed`
+                    : "Cloudinary Media Engine"}
+                </span>
+                <span style={{ fontWeight: 600, color: "#1b1c18" }}>
+                  {liveStorage
+                    ? `${liveStorage.cloudinary.creditsUsed} / ${liveStorage.cloudinary.creditsLimit} Credits (${liveStorage.cloudinary.creditsUsedPercent}%)`
+                    : "Brotli WebP"}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          
+
+              {/* Detailed Storage Breakdown Grid */}
+              <div className={styles.storageDetailGrid}>
+                {/* Breakdown Card 1 */}
+                <div className={styles.overviewCard}>
+                  <div className={styles.overviewCardHeader}>
+                    <div className={styles.overviewCardTitleRow}>
+                      <div className={styles.overviewCardIconBadge}>
+                        <span className="material-symbols-outlined text-[20px]">inventory_2</span>
+                      </div>
+                      <div>
+                        <h3 className={styles.overviewCardTitle}>Media Pipeline Distribution</h3>
+                        <p className={styles.overviewCardSubtitle}>Asset allocation across storage buckets</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className={styles.storageBreakdownItem}>
+                      <div className={styles.storageBreakdownLeft}>
+                        <div className={styles.storageBreakdownIcon}>
+                          <span className="material-symbols-outlined text-[20px]">audiotrack</span>
+                        </div>
+                        <div>
+                          <div className={styles.storageBreakdownTitle}>Audio Master Tracks (FLAC/MP3)</div>
+                          <div className={styles.storageBreakdownSub}>Path: tunedin/songs/*</div>
+                        </div>
+                      </div>
+                      <div className={styles.storageBreakdownValue}>
+                        {liveStorage ? liveStorage.cloudinary.objectsCount : tracks.length} files
+                      </div>
+                    </div>
+
+                    <div className={styles.storageBreakdownItem}>
+                      <div className={styles.storageBreakdownLeft}>
+                        <div className={styles.storageBreakdownIcon}>
+                          <span className="material-symbols-outlined text-[20px]">image</span>
+                        </div>
+                        <div>
+                          <div className={styles.storageBreakdownTitle}>Master Artwork Covers (1:1 Aspect)</div>
+                          <div className={styles.storageBreakdownSub}>Path: tunedin/posters/*</div>
+                        </div>
+                      </div>
+                      <div className={styles.storageBreakdownValue}>
+                        {tracks.length} images
+                      </div>
+                    </div>
+
+                    <div className={styles.storageBreakdownItem}>
+                      <div className={styles.storageBreakdownLeft}>
+                        <div className={styles.storageBreakdownIcon}>
+                          <span className="material-symbols-outlined text-[20px]">auto_fix_high</span>
+                        </div>
+                        <div>
+                          <div className={styles.storageBreakdownTitle}>On-The-Fly Audio Transformations</div>
+                          <div className={styles.storageBreakdownSub}>Adaptive bitrate streaming (HLS/AAC)</div>
+                        </div>
+                      </div>
+                      <div className={styles.storageBreakdownValue}>
+                        {liveStorage ? liveStorage.cloudinary.transformations : 0} executions
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Breakdown Card 2: Security & Protocols */}
+                <div className={styles.overviewCard}>
+                  <div className={styles.overviewCardHeader}>
+                    <div className={styles.overviewCardTitleRow}>
+                      <div className={styles.overviewCardIconBadge}>
+                        <span className="material-symbols-outlined text-[20px]">security</span>
+                      </div>
+                      <div>
+                        <h3 className={styles.overviewCardTitle}>CDN Delivery Protocols &amp; Security</h3>
+                        <p className={styles.overviewCardSubtitle}>Global edge network parameters</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className={styles.storageBreakdownItem}>
+                      <div className={styles.storageBreakdownLeft}>
+                        <div className={styles.storageBreakdownIcon}>
+                          <span className="material-symbols-outlined text-[20px]">lock</span>
+                        </div>
+                        <div>
+                          <div className={styles.storageBreakdownTitle}>Transport Security</div>
+                          <div className={styles.storageBreakdownSub}>HTTPS / TLS 1.3 Strict</div>
+                        </div>
+                      </div>
+                      <span className={styles.diagItemBadge}>256-Bit Enforced</span>
+                    </div>
+
+                    <div className={styles.storageBreakdownItem}>
+                      <div className={styles.storageBreakdownLeft}>
+                        <div className={styles.storageBreakdownIcon}>
+                          <span className="material-symbols-outlined text-[20px]">speed</span>
+                        </div>
+                        <div>
+                          <div className={styles.storageBreakdownTitle}>Compression Format</div>
+                          <div className={styles.storageBreakdownSub}>Lossless Brotli / WebP delivery</div>
+                        </div>
+                      </div>
+                      <span className={styles.diagItemBadge}>Optimized</span>
+                    </div>
+
+                    <div className={styles.storageBreakdownItem}>
+                      <div className={styles.storageBreakdownLeft}>
+                        <div className={styles.storageBreakdownIcon}>
+                          <span className="material-symbols-outlined text-[20px]">shield</span>
+                        </div>
+                        <div>
+                          <div className={styles.storageBreakdownTitle}>Master Storage Write-Lock</div>
+                          <div className={styles.storageBreakdownSub}>Prevent accidental override of published masters</div>
+                        </div>
+                      </div>
+                      <span className={styles.diagItemBadge}>Active</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 6: ADMIN PANEL */}
+          {activeNav === "admin-panel" && (
+            <div className={styles.adminPanelWrap}>
+              {/* Telemetry Bar */}
+              <div className={styles.adminTelemetryBar}>
+                <div>
+                  <h1 className={styles.pageTitle}>System Administration &amp; Access Control</h1>
+                  <p className={styles.sectionSubtitle} style={{ marginTop: "4px" }}>
+                    Manage administrative roles, zero-trust policies, and cryptographically verified audit records
+                  </p>
+                </div>
+                <div className={styles.telemetryActions}>
+                  <button
+                    type="button"
+                    className={styles.btnPublish}
+                    onClick={() => setIsInviteModalOpen(true)}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">person_add</span>
+                    <span>Invite Administrator</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={() => {
+                      const dataStr =
+                        "data:text/json;charset=utf-8," +
+                        encodeURIComponent(JSON.stringify(auditLogs, null, 2));
+                      const downloadAnchor = document.createElement("a");
+                      downloadAnchor.setAttribute("href", dataStr);
+                      downloadAnchor.setAttribute(
+                        "download",
+                        `tunedin_audit_log_${new Date().toISOString().slice(0, 10)}.json`
+                      );
+                      document.body.appendChild(downloadAnchor);
+                      downloadAnchor.click();
+                      downloadAnchor.remove();
+                      showToast("Exported JSON audit records successfully.");
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">download</span>
+                    <span>Export Audit Trail</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Admin Stat KPI Cards */}
+              <div className={styles.adminStatsGrid}>
+                {/* Stat 1: Total Admins */}
+                <div className={styles.statCard}>
+                  <div>
+                    <div className={styles.statHeader}>
+                      <span className={styles.statLabel}>Active Administrators</span>
+                      <span className={styles.statBadge}>
+                        <span className="material-symbols-outlined text-[13px]">shield</span>
+                        Zero-Trust
+                      </span>
+                    </div>
+                    <div className={styles.statValueRow}>
+                      <span className={styles.statValue}>{admins.length}</span>
+                      <span className={styles.statUnit}>/ {admins.filter((a) => a.online).length} online</span>
+                    </div>
+                    <div className={styles.statCalloutRow}>
+                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>MFA Enforcement</span>
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#059669" }}>100% Compliant</span>
+                    </div>
+                  </div>
+                  <div className={styles.statFooter}>
+                    <span>Role-Based Access Control</span>
+                    <span style={{ fontWeight: 600, color: "#1b1c18" }}>5 Assigned Roles</span>
+                  </div>
+                </div>
+
+                {/* Stat 2: Security Clearance */}
+                <div className={styles.statCard}>
+                  <div>
+                    <div className={styles.statHeader}>
+                      <span className={styles.statLabel}>Security Posture</span>
+                      <span className={styles.statBadgeAlt}>WebAuthn</span>
+                    </div>
+                    <div className={styles.statValueRow}>
+                      <span className={styles.statValue}>Tier 1</span>
+                    </div>
+                    <div className={styles.statCalloutRow}>
+                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>Passkey Verification</span>
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>Hardware Token</span>
+                    </div>
+                  </div>
+                  <div className={styles.statFooter}>
+                    <span>Security Assertion Protocol</span>
+                    <span style={{ color: "#059669", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }} />
+                      Enforced
+                    </span>
+                  </div>
+                </div>
+
+                {/* Stat 3: B2 Storage Tokens */}
+                <div className={styles.statCard}>
+                  <div>
+                    <div className={styles.statHeader}>
+                      <span className={styles.statLabel}>Cloudinary API Tokens</span>
+                      <span className={styles.statBadgeAlt}>Cloudinary</span>
+                    </div>
+                    <div className={styles.statValueRow}>
+                      <span className={styles.statValue}>4</span>
+                      <span className={styles.statUnit}>active keys</span>
+                    </div>
+                    <div className={styles.statCalloutRow}>
+                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>Key Rotation Cycle</span>
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#1b1c18" }}>3 Days Ago</span>
+                    </div>
+                  </div>
+                  <div className={styles.statFooter}>
+                    <span>Master FLAC Write Lock</span>
+                    <span style={{ fontWeight: 600, color: "#A03B00" }}>Dual Sign-Off</span>
+                  </div>
+                </div>
+
+                {/* Stat 4: System Edge Latency */}
+                <div className={styles.statCard}>
+                  <div>
+                    <div className={styles.statHeader}>
+                      <span className={styles.statLabel}>Edge Health &amp; Uptime</span>
+                      <span className={styles.statBadge}>
+                        <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                        99.99%
+                      </span>
+                    </div>
+                    <div className={styles.statValueRow}>
+                      <span className={styles.statValue}>22ms</span>
+                      <span className={styles.statUnit}>avg latency</span>
+                    </div>
+                    <div className={styles.statCalloutRow}>
+                      <span style={{ color: "#5f5e5e", fontWeight: 500 }}>Anomalous Access</span>
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, color: "#059669" }}>0 Detected</span>
+                    </div>
+                  </div>
+                  <div className={styles.statFooter}>
+                    <span>Global PoP Locations</span>
+                    <span style={{ fontWeight: 600, color: "#1b1c18" }}>310 Cities Live</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: Administrators Management Table */}
+              <div className={styles.adminCard}>
+                <div className={styles.adminCardHeader}>
+                  <div className={styles.sectionHeaderLeft}>
+                    <div className={styles.sectionIconBadge}>
+                      <span className="material-symbols-outlined text-[20px]">manage_accounts</span>
+                    </div>
+                    <div>
+                      <h2 className={styles.sectionTitle}>Platform Administrators</h2>
+                      <p className={styles.sectionSubtitle}>
+                        Role allocations, hardware 2FA compliance, and delegated access permissions
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className={styles.sectionHeaderRight}>
+                    <div className={styles.autoSaveBadge}>
+                      <span className={styles.autoSaveDot}></span>
+                      <span>
+                        Showing <strong style={{ color: "#1b1c18" }}>{filteredAdmins.length}</strong> of{" "}
+                        <strong style={{ color: "#1b1c18" }}>{admins.length}</strong> admins
+                        {isLoadingAdmins && (
+                          <span style={{ marginLeft: "8px", fontSize: "12px", color: "#A03B00", fontWeight: 600 }}>
+                            • Syncing with MongoDB User Model...
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter Controls Bar */}
+                <div className={styles.adminFilterControls}>
+                  <div className={styles.adminRoleTabs}>
+                    {[
+                      { key: "all", label: "All Roles" },
+                      { key: "super admin", label: "Super Admin" },
+                      { key: "secops", label: "SecOps" },
+                      { key: "catalog", label: "Catalog Leads" },
+                      { key: "curator", label: "Curators" },
+                      { key: "infrastructure", label: "Infrastructure" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        className={`${styles.adminRoleTabBtn} ${adminRoleFilter === tab.key ? styles.adminRoleTabBtnActive : ""}`}
+                        onClick={() => setAdminRoleFilter(tab.key)}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className={styles.adminSearchInputWrapper}>
+                    <span className="material-symbols-outlined text-[16px]" style={{ color: "#5f5e5e" }}>search</span>
+                    <input
+                      type="text"
+                      className={styles.adminSearchInputField}
+                      placeholder="Filter by name, email, or role..."
+                      value={adminSearch}
+                      onChange={(e) => setAdminSearch(e.target.value)}
+                    />
+                    {adminSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminSearch("")}
+                        style={{ border: "none", background: "none", cursor: "pointer", color: "#5f5e5e" }}
+                      >
+                        <span className="material-symbols-outlined text-[14px]">close</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Table */}
+                <div className={styles.tableScrollWrapper}>
+                  <table className={styles.catalogTable}>
+                    <thead>
+                      <tr className={styles.tableHeaderRow}>
+                        <th className={styles.thCell} style={{ paddingLeft: "1.5rem" }}>Administrator</th>
+                        <th className={styles.thCell}>Assigned Role</th>
+                        <th className={styles.thCell}>Security (2FA)</th>
+                        <th className={styles.thCell}>Delegated Privileges Scope</th>
+                        <th className={styles.thCell}>Last Active</th>
+                        <th className={styles.thCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAdmins.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: "center", padding: "3rem", color: "#5f5e5e" }}>
+                            {isLoadingAdmins
+                              ? "Fetching platform administrators from MongoDB User model..."
+                              : "No administrators found matching criteria."}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredAdmins.map((admin) => (
+                          <tr key={admin.id} className={styles.tableBodyRow}>
+                            <td className={styles.tdCell} style={{ paddingLeft: "1.5rem" }}>
+                              <div className={styles.adminUserCell}>
+                                <div
+                                  className={styles.adminUserAvatar}
+                                  style={{ backgroundColor: admin.avatarBg, color: admin.avatarColor, position: "relative" }}
+                                >
+                                  {admin.name.charAt(0)}
+                                  {admin.online && (
+                                    <span
+                                      style={{
+                                        position: "absolute",
+                                        bottom: "-1px",
+                                        right: "-1px",
+                                        width: "8px",
+                                        height: "8px",
+                                        borderRadius: "50%",
+                                        backgroundColor: "#10b981",
+                                        border: "1.5px solid #ffffff",
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                                <div>
+                                  <div className={styles.adminUserName}>{admin.name}</div>
+                                  <div className={styles.adminUserEmail}>{admin.email}</div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className={styles.tdCell}>
+                              <span
+                                className={styles.roleBadgePill}
+                                style={{
+                                  backgroundColor: admin.avatarBg,
+                                  color: admin.roleColor,
+                                  border: `1px solid ${admin.roleColor}40`,
+                                }}
+                              >
+                                {admin.role}
+                              </span>
+                            </td>
+
+                            <td className={styles.tdCell}>
+                              {admin.mfaStatus === "Verified" ? (
+                                <span className={styles.mfaBadgeVerified}>
+                                  <span className="material-symbols-outlined text-[13px]">verified_user</span>
+                                  2FA Enforced
+                                </span>
+                              ) : (
+                                <span className={styles.mfaBadgePending}>
+                                  <span className="material-symbols-outlined text-[13px]">pending</span>
+                                  Pending Setup
+                                </span>
+                              )}
+                            </td>
+
+                            <td className={styles.tdCell} style={{ color: "#5f5e5e", fontSize: "13px" }}>
+                              {admin.scope}
+                            </td>
+
+                            <td className={styles.tdCell} style={{ fontSize: "12px", color: "#5f5e5e", fontFamily: "Space Grotesk, sans-serif" }}>
+                              {admin.lastActive}
+                            </td>
+
+                            <td className={styles.tdCell} style={{ textAlign: "right", paddingRight: "1.5rem" }}>
+                              <div className={styles.rowActions}>
+                                <button
+                                  type="button"
+                                  className={styles.rowActionBtn}
+                                  title="Cycle / Reassign Role"
+                                  onClick={() => handleCycleRole(admin.id, admin.role, admin.name)}
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.rowActionBtn}
+                                  title={admin.mfaStatus === "Verified" ? "Set 2FA status to Pending in MongoDB" : "Enforce 2FA status in MongoDB"}
+                                  onClick={() => handleToggleAdmin2FA(admin.id, admin.mfaStatus === "Verified", admin.name)}
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">key</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`${styles.rowActionBtn} ${styles.rowActionBtnDanger}`}
+                                  title="Revoke Admin Access"
+                                  onClick={() => handleRevokeAdmin(admin.id, admin.name)}
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">person_remove</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION: Security & System Policies */}
+              <div className={styles.adminCard}>
+                <div className={styles.adminCardHeader}>
+                  <div className={styles.sectionHeaderLeft}>
+                    <div className={styles.sectionIconBadge}>
+                      <span className="material-symbols-outlined text-[20px]">security</span>
+                    </div>
+                    <div>
+                      <h2 className={styles.sectionTitle}>Security Policies &amp; System Controls</h2>
+                      <p className={styles.sectionSubtitle}>
+                        Cryptographic enforcement, Cloudinary asset protection, and multi-region CDN caching
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.policyGrid}>
+                  {/* Policy 1 */}
+                  <div className={styles.policyCard}>
+                    <div>
+                      <div className={styles.policyCardHeader}>
+                        <h3 className={styles.policyCardTitle}>Strict WebAuthn / Passkeys</h3>
+                        <label className={styles.switchLabel}>
+                          <input
+                            type="checkbox"
+                            className={styles.switchInput}
+                            checked={securityPolicies.strictMfa}
+                            onChange={() => handleTogglePolicy("strictMfa", "Strict WebAuthn")}
+                          />
+                          <span className={styles.switchSlider}></span>
+                        </label>
+                      </div>
+                      <p className={styles.policyCardDesc}>
+                        Requires biometric authentication (TouchID, FaceID, or YubiKey) for all administrative sessions.
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.strictMfa ? "#059669" : "#5f5e5e" }}>
+                      {securityPolicies.strictMfa ? "Active Enforcement" : "Optional"}
+                    </span>
+                  </div>
+
+                  {/* Policy 2 */}
+                  <div className={styles.policyCard}>
+                    <div>
+                      <div className={styles.policyCardHeader}>
+                        <h3 className={styles.policyCardTitle}>Master Audio Write Lock</h3>
+                        <label className={styles.switchLabel}>
+                          <input
+                            type="checkbox"
+                            className={styles.switchInput}
+                            checked={securityPolicies.b2WriteLock}
+                            onChange={() => handleTogglePolicy("b2WriteLock", "Master Audio Write Lock")}
+                          />
+                          <span className={styles.switchSlider}></span>
+                        </label>
+                      </div>
+                      <p className={styles.policyCardDesc}>
+                        Prevents unapproved deletion or replacement of studio audio files in Cloudinary.
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.b2WriteLock ? "#A03B00" : "#5f5e5e" }}>
+                      {securityPolicies.b2WriteLock ? "Dual Sign-Off Locked" : "Unlocked"}
+                    </span>
+                  </div>
+
+                  {/* Policy 3 */}
+                  <div className={styles.policyCard}>
+                    <div>
+                      <div className={styles.policyCardHeader}>
+                        <h3 className={styles.policyCardTitle}>Live Edge Invalidation</h3>
+                        <label className={styles.switchLabel}>
+                          <input
+                            type="checkbox"
+                            className={styles.switchInput}
+                            checked={securityPolicies.edgeInvalidation}
+                            onChange={() => handleTogglePolicy("edgeInvalidation", "Live Edge Invalidation")}
+                          />
+                          <span className={styles.switchSlider}></span>
+                        </label>
+                      </div>
+                      <p className={styles.policyCardDesc}>
+                        Automatically purges CDN edge caches worldwide within 500ms of catalog and audio updates.
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.edgeInvalidation ? "#059669" : "#5f5e5e" }}>
+                      {securityPolicies.edgeInvalidation ? "Sub-second Sync Enabled" : "Manual Flush"}
+                    </span>
+                  </div>
+
+                  {/* Policy 4 */}
+                  <div className={styles.policyCard}>
+                    <div>
+                      <div className={styles.policyCardHeader}>
+                        <h3 className={styles.policyCardTitle}>Encrypted DB Snapshots</h3>
+                        <label className={styles.switchLabel}>
+                          <input
+                            type="checkbox"
+                            className={styles.switchInput}
+                            checked={securityPolicies.dbSnapshots}
+                            onChange={() => handleTogglePolicy("dbSnapshots", "Encrypted DB Snapshots")}
+                          />
+                          <span className={styles.switchSlider}></span>
+                        </label>
+                      </div>
+                      <p className={styles.policyCardDesc}>
+                        Captures hourly Zstandard compressed and AES-256 encrypted database state snapshots.
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.dbSnapshots ? "#059669" : "#5f5e5e" }}>
+                      {securityPolicies.dbSnapshots ? "Hourly Automatic Backup" : "Disabled"}
+                    </span>
+                  </div>
+
+                  {/* Policy 5 */}
+                  <div className={styles.policyCard}>
+                    <div>
+                      <div className={styles.policyCardHeader}>
+                        <h3 className={styles.policyCardTitle}>Public Maintenance Mode</h3>
+                        <label className={styles.switchLabel}>
+                          <input
+                            type="checkbox"
+                            className={styles.switchInput}
+                            checked={securityPolicies.maintenanceMode}
+                            onChange={() => handleTogglePolicy("maintenanceMode", "Maintenance Mode")}
+                          />
+                          <span className={styles.switchSlider}></span>
+                        </label>
+                      </div>
+                      <p className={styles.policyCardDesc}>
+                        Suspends public streaming client endpoints and returns HTTP 503 for all unauthenticated listener clients.
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: securityPolicies.maintenanceMode ? "#A03B00" : "#059669" }}>
+                      {securityPolicies.maintenanceMode ? "System Paused (Maintenance)" : "Normal Operations"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: Live Security Audit Trail */}
+              <div className={styles.adminCard}>
+                <div className={styles.adminCardHeader}>
+                  <div className={styles.sectionHeaderLeft}>
+                    <div className={styles.sectionIconBadge}>
+                      <span className="material-symbols-outlined text-[20px]">history</span>
+                    </div>
+                    <div>
+                      <h2 className={styles.sectionTitle}>Live Security Audit Trail</h2>
+                      <p className={styles.sectionSubtitle}>
+                        Append-only cryptographic timeline of system configuration and administrative events
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.auditList}>
+                  {auditLogs.map((log) => (
+                    <div key={log.id} className={styles.auditItem}>
+                      <div className={styles.auditItemLeft}>
+                        <span className={styles.auditActorBadge}>{log.actor}</span>
+                        <div>
+                          <div className={styles.auditActionText}>{log.action}</div>
+                          <div className={styles.auditTarget}>{log.target}</div>
+                        </div>
+                      </div>
+
+                      <div className={styles.auditMetaRight}>
+                        <span style={{ fontFamily: "Space Grotesk, sans-serif" }}>{log.ip}</span>
+                        <span>•</span>
+                        <span>{log.time}</span>
+                        <span
+                          style={{
+                            width: "6px",
+                            height: "6px",
+                            borderRadius: "50%",
+                            backgroundColor: log.status === "success" ? "#10b981" : "#A03B00",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 7: CONSOLE SETTINGS & ENVIRONMENT */}
+          {activeNav === "settings" && (
+            <div className={styles.settingsWrapper}>
+              <div className={styles.telemetryBar}>
+                <div>
+                  <h1 className={styles.pageTitle}>Console Settings &amp; Environment</h1>
+                  <p className={styles.sectionSubtitle} style={{ marginTop: "4px" }}>
+                    Platform configuration, audio encoding parameters, session security, and system diagnostics
+                  </p>
+                </div>
+                <div className={styles.telemetryActions}>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={() => {
+                      const specs = {
+                        consoleVersion: "v2.4.0",
+                        framework: "Next.js 16.4 (App Router)",
+                        runtime: "React 19 + Turbopack",
+                        database: "MongoDB Mongoose 9.1",
+                        auth: "NextAuth 4.24 Google OAuth",
+                        activeAdmins: admins.length,
+                        totalTracks: tracks.length,
+                      };
+                      navigator.clipboard.writeText(JSON.stringify(specs, null, 2));
+                      showToast("System diagnostics copied to clipboard!");
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">content_copy</span>
+                    <span>Copy System Specs</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Settings 2-Column Grid */}
+              <div className={styles.settingsGrid}>
+                {/* Card 1: Platform & Environment */}
+                <div className={styles.settingsCard}>
+                  <div className={styles.overviewCardHeader}>
+                    <div className={styles.overviewCardTitleRow}>
+                      <div className={styles.overviewCardIconBadge}>
+                        <span className="material-symbols-outlined text-[20px]">terminal</span>
+                      </div>
+                      <div>
+                        <h3 className={styles.overviewCardTitle}>Platform &amp; Environment</h3>
+                        <p className={styles.overviewCardSubtitle}>Core software and framework dependencies</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.settingsCardBody}>
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Console Build Version</span>
+                        <span className={styles.settingsRowSub}>TunedIn Admin Core</span>
+                      </div>
+                      <span className={styles.settingsBadgePill}>v2.4.0 (Production)</span>
+                    </div>
+
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Next.js Framework</span>
+                        <span className={styles.settingsRowSub}>App Router Architecture</span>
+                      </div>
+                      <span className={styles.settingsBadgePill}>Next.js 16.4</span>
+                    </div>
+
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>React Runtime</span>
+                        <span className={styles.settingsRowSub}>Server &amp; Client Components</span>
+                      </div>
+                      <span className={styles.settingsBadgePill}>React 19</span>
+                    </div>
+
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Database Layer</span>
+                        <span className={styles.settingsRowSub}>MongoDB Mongoose ODM</span>
+                      </div>
+                      <span className={styles.settingsBadgePill}>Mongoose 9.1</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 2: Audio Ingestion Parameters */}
+                <div className={styles.settingsCard}>
+                  <div className={styles.overviewCardHeader}>
+                    <div className={styles.overviewCardTitleRow}>
+                      <div className={styles.overviewCardIconBadge}>
+                        <span className="material-symbols-outlined text-[20px]">graphic_eq</span>
+                      </div>
+                      <div>
+                        <h3 className={styles.overviewCardTitle}>Audio Ingestion Parameters</h3>
+                        <p className={styles.overviewCardSubtitle}>Default audio staging and encoding rules</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.settingsCardBody}>
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Master Audio Codec</span>
+                        <span className={styles.settingsRowSub}>Staging format preference</span>
+                      </div>
+                      <span className={styles.settingsBadgePill}>Lossless FLAC / WAV / MP3</span>
+                    </div>
+
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Studio Sample Rate</span>
+                        <span className={styles.settingsRowSub}>Web Audio API Synthesizer output</span>
+                      </div>
+                      <span className={styles.settingsBadgePill}>48.0 kHz / 24-Bit</span>
+                    </div>
+
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Default ISRC Prefix</span>
+                        <span className={styles.settingsRowSub}>Standard country and year code</span>
+                      </div>
+                      <span className={styles.settingsBadgePill}>US-TUN-25-</span>
+                    </div>
+
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Max Upload File Size</span>
+                        <span className={styles.settingsRowSub}>Direct stream to Cloudinary</span>
+                      </div>
+                      <span className={styles.settingsBadgePill}>100 MB</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 3: Authentication & Zero-Trust */}
+                <div className={styles.settingsCard}>
+                  <div className={styles.overviewCardHeader}>
+                    <div className={styles.overviewCardTitleRow}>
+                      <div className={styles.overviewCardIconBadge}>
+                        <span className="material-symbols-outlined text-[20px]">shield</span>
+                      </div>
+                      <div>
+                        <h3 className={styles.overviewCardTitle}>Authentication &amp; Security</h3>
+                        <p className={styles.overviewCardSubtitle}>NextAuth session and credential policies</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.settingsCardBody}>
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>OAuth Provider</span>
+                        <span className={styles.settingsRowSub}>Google Cloud Console Verified</span>
+                      </div>
+                      <span className={styles.diagItemBadge}>Connected</span>
+                    </div>
+
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Session Duration</span>
+                        <span className={styles.settingsRowSub}>HTTP-Only Cookie Expiry</span>
+                      </div>
+                      <span className={styles.settingsBadgePill}>24 Hours</span>
+                    </div>
+
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Role Hierarchy</span>
+                        <span className={styles.settingsRowSub}>Zero-Trust RBAC scopes</span>
+                      </div>
+                      <span className={styles.settingsBadgePill}>5 Roles Configured</span>
+                    </div>
+
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Maintenance Mode</span>
+                        <span className={styles.settingsRowSub}>Return HTTP 503 to listener clients</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`${styles.toggleSwitch} ${securityPolicies.maintenanceMode ? styles.toggleSwitchActive : ""}`}
+                        onClick={() => handleTogglePolicy("maintenanceMode", "Maintenance mode")}
+                      >
+                        <div className={styles.toggleThumb} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 4: Diagnostics & Quick Tools */}
+                <div className={styles.settingsCard}>
+                  <div className={styles.overviewCardHeader}>
+                    <div className={styles.overviewCardTitleRow}>
+                      <div className={styles.overviewCardIconBadge}>
+                        <span className="material-symbols-outlined text-[20px]">build</span>
+                      </div>
+                      <div>
+                        <h3 className={styles.overviewCardTitle}>Diagnostics &amp; Maintenance</h3>
+                        <p className={styles.overviewCardSubtitle}>Operational utility actions</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.settingsCardBody}>
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Test MongoDB Connection</span>
+                        <span className={styles.settingsRowSub}>Ping active mongoose database singleton</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.settingsActionBtn}
+                        onClick={async () => {
+                          showToast("Testing database connection...");
+                          await fetchCatalogSongs();
+                          showToast("Database connection healthy!");
+                        }}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">cable</span>
+                        <span>Test Ping</span>
+                      </button>
+                    </div>
+
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Clear Console Local Cache</span>
+                        <span className={styles.settingsRowSub}>Reset client storage and search filters</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.settingsActionBtn}
+                        onClick={() => {
+                          setSearchQuery("");
+                          setAdminSearch("");
+                          setCurrentPage(1);
+                          showToast("Local console filters reset.");
+                        }}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">delete_sweep</span>
+                        <span>Reset Filters</span>
+                      </button>
+                    </div>
+
+                    <div className={styles.settingsRow}>
+                      <div className={styles.settingsRowLeft}>
+                        <span className={styles.settingsRowTitle}>Flush Telemetry Metrics</span>
+                        <span className={styles.settingsRowSub}>Re-sync Cloudinary credits &amp; bandwidth</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.settingsActionBtn}
+                        onClick={handleRefresh}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">sync</span>
+                        <span>Full Sync</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
         </main>
       </div>
 
-      {/* Invite Administrator Modal */}
+
+      {/* Create Playlist Modal */}
+      {isNewPlaylistModalOpen && (
+        <div className={styles.modalBackdrop} onClick={() => setIsNewPlaylistModalOpen(false)}>
+          <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span className="material-symbols-outlined" style={{ color: "#A03B00" }}>queue_music</span>
+                <h3 className={styles.modalTitle}>Create Curated Playlist</h3>
+              </div>
+              <button
+                type="button"
+                className={styles.modalCloseBtn}
+                onClick={() => setIsNewPlaylistModalOpen(false)}
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePlaylist}>
+              <div className={styles.modalBody}>
+                <div className={styles.inputGroup}>
+                  <label className={styles.fieldLabel}>Playlist Name</label>
+                  <input
+                    type="text"
+                    required
+                    className={styles.textInput}
+                    placeholder="e.g. TunedIn Midnight Masters"
+                    value={newPlaylistName}
+                    onChange={(e) => setNewPlaylistName(e.target.value)}
+                  />
+                </div>
+
+                <div className={styles.inputGroup}>
+                  <label className={styles.fieldLabel}>Curator Description</label>
+                  <input
+                    type="text"
+                    className={styles.textInput}
+                    placeholder="e.g. Deep acoustic cuts and lossless tape recordings"
+                    value={newPlaylistDesc}
+                    onChange={(e) => setNewPlaylistDesc(e.target.value)}
+                  />
+                </div>
+
+                <div className={styles.inputGroup}>
+                  <label className={styles.fieldLabel}>Cover Image URL (Optional)</label>
+                  <input
+                    type="url"
+                    className={styles.textInput}
+                    placeholder="https://images.unsplash.com/..."
+                    value={newPlaylistImage}
+                    onChange={(e) => setNewPlaylistImage(e.target.value)}
+                  />
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "8px", padding: "10px 14px", background: "#f5f3ed", borderRadius: "8px" }}>
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>Public to Listener Clients</span>
+                  <button
+                    type="button"
+                    className={`${styles.toggleSwitch} ${newPlaylistPublic ? styles.toggleSwitchActive : ""}`}
+                    onClick={() => setNewPlaylistPublic(!newPlaylistPublic)}
+                  >
+                    <div className={styles.toggleThumb} />
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.modalFooter}>
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={() => setIsNewPlaylistModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className={styles.btnPublish}>
+                  <span className="material-symbols-outlined text-[18px]">add</span>
+                  <span>Create Playlist</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+{/* Invite Administrator Modal */}
       {isInviteModalOpen && (
         <div className={styles.modalBackdrop} onClick={() => setIsInviteModalOpen(false)}>
           <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
