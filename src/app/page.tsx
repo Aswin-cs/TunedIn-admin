@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import styles from "./page.module.css";
+import PremiumLoadingScreen from "@/components/PremiumLoadingScreen";
 
 interface CatalogTrack {
   id: string;
@@ -1295,14 +1296,7 @@ export default function AdminDashboardPage() {
 
   // Authentication Gate Check
   if (status === "loading") {
-    return (
-      <div className={styles.authGateContainer}>
-        <div className={styles.authGateCard}>
-          <div className={styles.authGateSpinner} />
-          <p className={styles.authGateLoadingText}>Verifying administrator session...</p>
-        </div>
-      </div>
-    );
+    return <PremiumLoadingScreen message="Verifying administrator session..." />;
   }
 
   // Not Logged In View

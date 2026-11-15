@@ -8,6 +8,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import { useDebounce } from "use-debounce";
 import { usernameSchema } from "@/lib/validations/user";
 import styles from "./login.module.css";
+import PremiumLoadingScreen from "@/components/PremiumLoadingScreen";
 
 function LoginForm() {
   const { data: session, status } = useSession();
@@ -792,7 +793,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className={styles.loginPage}>Loading authentication portal...</div>}>
+    <Suspense fallback={<PremiumLoadingScreen message="Initializing authentication gateway..." />}>
       <LoginForm />
     </Suspense>
   );
