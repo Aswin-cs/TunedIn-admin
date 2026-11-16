@@ -1593,8 +1593,10 @@ export default function AdminDashboardPage() {
           <div className={styles.ambientGlow1} aria-hidden="true" />
           <div className={styles.ambientGlow2} aria-hidden="true" />
 
-          {/* VIEW 1: OVERVIEW & ANALYTICS */}
-          {activeNav === "overview-analytics" && (
+          {/* Active View Container with Tab Switching Animation */}
+          <div key={activeNav} className={styles.viewTransitionContainer}>
+            {/* VIEW 1: OVERVIEW & ANALYTICS */}
+            {activeNav === "overview-analytics" && (
             <div className={styles.overviewWrapper}>
               {/* Studio Welcome Banner */}
               <div className={styles.overviewHeroBanner}>
@@ -4311,6 +4313,7 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           )}
+          </div>
 
         </main>
       </div>
