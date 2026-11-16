@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import styles from "./page.module.css";
 import PremiumLoadingScreen from "@/components/PremiumLoadingScreen";
+import ImageCropModal from "@/components/ImageCropModal";
 
 interface CatalogTrack {
   id: string;
@@ -205,6 +206,16 @@ export default function AdminDashboardPage() {
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isUploadingArtwork, setIsUploadingArtwork] = useState(false);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+
+  // Artwork Cropping & Framing State (1:1 Strict Square)
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string>("");
+  const [pendingArtworkFileName, setPendingArtworkFileName] = useState<string>("artwork_master.jpg");
+  const [artworkLocalPreview, setArtworkLocalPreview] = useState<string>("");
+
+  // Staged pending files (ONLY uploaded to Cloudinary upon form submission)
+  const [pendingArtworkFile, setPendingArtworkFile] = useState<File | null>(null);
+  const [pendingAudioFile, setPendingAudioFile] = useState<File | null>(null);
 
   const artworkFileInputRef = useRef<HTMLInputElement | null>(null);
   const audioFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -923,13 +934,47 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleArtworkFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await uploadArtworkFile(file);
+  const handleInitiateCrop = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      showToast("Please select a valid image file (JPG, PNG, WebP).");
+      return;
+    }
+    setPendingArtworkFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setCropImageSrc(ev.target.result as string);
+        setIsCropModalOpen(true);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
-  const uploadAudioFile = async (file: File) => {
+  const handleArtworkFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    handleInitiateCrop(file);
+    e.target.value = "";
+  };
+
+  const handleCropComplete = (croppedFile: File, previewUrl: string) => {
+    setIsCropModalOpen(false);
+    setPendingArtworkFile(croppedFile);
+    setArtworkLocalPreview(previewUrl);
+    showToast(`1:1 Artwork "${croppedFile.name}" staged (uploads to Cloudinary on form submit).`);
+  };
+
+  const handleOpenCropExisting = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const targetSrc = artworkLocalPreview || artworkUrl;
+    if (targetSrc) {
+      setCropImageSrc(targetSrc);
+      setPendingArtworkFileName(pendingArtworkFile ? pendingArtworkFile.name : "cover_artwork_master.jpg");
+      setIsCropModalOpen(true);
+    }
+  };
+
+  const handleSelectAudioFile = (file: File) => {
     const validExtensions = [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"];
     const ext = "." + (file.name.split(".").pop()?.toLowerCase() || "");
     const isAudioType = file.type.startsWith("audio/") || validExtensions.includes(ext);
@@ -939,14 +984,10 @@ export default function AdminDashboardPage() {
       return;
     }
 
-    setIsUploadingAudio(true);
+    setPendingAudioFile(file);
     setActiveFileName(file.name);
     const sizeInMB = (file.size / (1024 * 1024)).toFixed(1);
     setActiveFileSize(`${sizeInMB} MB`);
-    const initialUrl = `https://res.cloudinary.com/pwtmlbit/video/upload/tunedin/songs/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
-    setAudioUrl(initialUrl);
-    setAudioKey(`tunedin/songs/${file.name.replace(/\s+/g, "_")}`);
-    showToast(`Staging master audio "${file.name}"...`);
 
     // Create object URL for instant zero-latency playback preview
     try {
@@ -967,39 +1008,98 @@ export default function AdminDashboardPage() {
       console.warn("Could not create local audio preview:", e);
     }
 
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch("/api/songs/upload-audio", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.success) {
-        if (data.audioUrl) setAudioUrl(data.audioUrl);
-        if (data.audioKey) setAudioKey(data.audioKey);
-        showToast(`Master audio "${file.name}" ready & stored in Cloudinary (tunedin/songs).`);
-      } else {
-        const fallbackUrl = `https://res.cloudinary.com/pwtmlbit/video/upload/tunedin/songs/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
-        setAudioUrl(fallbackUrl);
-        setAudioKey(`tunedin/songs/${file.name.replace(/\s+/g, "_")}`);
-        showToast(`Master audio "${file.name}" staged.`);
-      }
-    } catch {
-      const fallbackUrl = `https://res.cloudinary.com/pwtmlbit/video/upload/tunedin/songs/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
-      setAudioUrl(fallbackUrl);
-      setAudioKey(`tunedin/songs/${file.name.replace(/\s+/g, "_")}`);
-      showToast(`Master audio "${file.name}" staged.`);
-    } finally {
-      setIsUploadingAudio(false);
-    }
+    showToast(`Master audio "${file.name}" staged (uploads to Cloudinary on form submit).`);
   };
 
-  const handleAudioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    await uploadAudioFile(file);
+    handleSelectAudioFile(file);
+    e.target.value = "";
+  };
+
+  // Uploads pending staged artwork and audio to Cloudinary ONLY upon form submission
+  const uploadPendingMedia = async (): Promise<{
+    finalPosterUrl: string;
+    finalPosterId: string;
+    finalAudioUrl: string;
+    finalAudioKey: string;
+  } | null> => {
+    let finalPosterUrl = artworkUrl;
+    let finalPosterId = posterId;
+    let finalAudioUrl = audioUrl;
+    let finalAudioKey = audioKey;
+
+    // 1. Upload Pending Artwork to Cloudinary if staged
+    if (pendingArtworkFile) {
+      setIsUploadingArtwork(true);
+      showToast(`Uploading poster artwork "${pendingArtworkFile.name}" to Cloudinary...`);
+      try {
+        const formData = new FormData();
+        formData.append("file", pendingArtworkFile);
+
+        const res = await fetch("/api/songs/upload-artwork", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.success && data.url) {
+          finalPosterUrl = data.url;
+          finalPosterId = data.poster_Id || `poster_${Date.now()}`;
+          setArtworkUrl(finalPosterUrl);
+          setPosterId(finalPosterId);
+          setPendingArtworkFile(null);
+        } else {
+          showToast(data.error || "Artwork upload failed.");
+          return null;
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Network error uploading artwork to Cloudinary.");
+        return null;
+      } finally {
+        setIsUploadingArtwork(false);
+      }
+    }
+
+    // 2. Upload Pending Audio to Cloudinary if staged
+    if (pendingAudioFile) {
+      setIsUploadingAudio(true);
+      showToast(`Uploading master audio "${pendingAudioFile.name}" to Cloudinary...`);
+      try {
+        const formData = new FormData();
+        formData.append("file", pendingAudioFile);
+
+        const res = await fetch("/api/songs/upload-audio", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.success && data.audioUrl) {
+          finalAudioUrl = data.audioUrl;
+          finalAudioKey = data.audioKey || `tunedin/songs/${pendingAudioFile.name.replace(/\s+/g, "_")}`;
+          setAudioUrl(finalAudioUrl);
+          setAudioKey(finalAudioKey);
+          setPendingAudioFile(null);
+        } else {
+          showToast(data.error || "Audio upload to Cloudinary failed.");
+          return null;
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Network error uploading audio to Cloudinary.");
+        return null;
+      } finally {
+        setIsUploadingAudio(false);
+      }
+    }
+
+    return {
+      finalPosterUrl,
+      finalPosterId,
+      finalAudioUrl,
+      finalAudioKey,
+    };
   };
 
   const handleRemoveAudio = () => {
@@ -1009,6 +1109,7 @@ export default function AdminDashboardPage() {
     }
     setAudioUrl("");
     setAudioKey("");
+    setPendingAudioFile(null);
     setActiveFileName("");
     setActiveFileSize("");
     setAudioDuration(0);
@@ -1022,6 +1123,8 @@ export default function AdminDashboardPage() {
   const handleRemoveArtwork = (e: React.MouseEvent) => {
     e.stopPropagation();
     setArtworkUrl("");
+    setArtworkLocalPreview("");
+    setPendingArtworkFile(null);
     setPosterId("");
     if (artworkFileInputRef.current) artworkFileInputRef.current.value = "";
     showToast("Cover artwork removed. Please upload cover artwork to enable submission.");
@@ -1036,9 +1139,12 @@ export default function AdminDashboardPage() {
     setPrimaryArtist("");
     setAlbumCollection("");
     setArtworkUrl("");
+    setArtworkLocalPreview("");
+    setPendingArtworkFile(null);
     setPosterId("");
     setAudioUrl("");
     setAudioKey("");
+    setPendingAudioFile(null);
     setActiveFileName("");
     setActiveFileSize("");
     setAudioDuration(0);
@@ -1077,8 +1183,8 @@ export default function AdminDashboardPage() {
   const isArtistValid = primaryArtist.trim().length > 0;
   const isAlbumValid = albumCollection.trim().length > 0;
   const isIsrcValid = isrc.trim().length > 0;
-  const isArtworkValid = Boolean(artworkUrl && artworkUrl.trim().length > 0);
-  const isAudioValid = Boolean(audioUrl && audioUrl.trim().length > 0 && activeFileName);
+  const isArtworkValid = Boolean((artworkUrl && artworkUrl.trim().length > 0) || pendingArtworkFile || artworkLocalPreview);
+  const isAudioValid = Boolean(((audioUrl && audioUrl.trim().length > 0) || pendingAudioFile) && activeFileName);
   const isTagsValid = activeTags.length > 0;
 
   const isFormValid = (
@@ -1108,6 +1214,12 @@ export default function AdminDashboardPage() {
     }
     setIsSavingDraft(true);
     try {
+      const media = await uploadPendingMedia();
+      const poster_url = media?.finalPosterUrl || artworkUrl || "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80";
+      const poster_Id = media?.finalPosterId || posterId || `poster_${Date.now()}`;
+      const audio_url = media?.finalAudioUrl || audioUrl || "https://res.cloudinary.com/pwtmlbit/video/upload/tunedin/songs/draft.mp3";
+      const audio_Id = media?.finalAudioKey || audioKey || `tunedin/songs/draft-${Date.now()}`;
+
       const res = await fetch("/api/songs/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1116,10 +1228,10 @@ export default function AdminDashboardPage() {
           artist: [primaryArtist.trim() || "Unknown Artist"],
           album: albumCollection.trim() || "Single / Ingestion Draft",
           duration: Math.round(audioDuration || 278),
-          audio_url: audioUrl || "https://res.cloudinary.com/pwtmlbit/video/upload/tunedin/songs/draft.mp3",
-          audio_Id: audioKey || `tunedin/songs/draft-${Date.now()}`,
-          poster_url: artworkUrl || "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80",
-          poster_Id: posterId || `poster_${Date.now()}`,
+          audio_url,
+          audio_Id,
+          poster_url,
+          poster_Id,
           genre: activeTags.length > 0 ? activeTags : ["Electronic"],
           plays: 0,
           likes: 0,
@@ -1160,6 +1272,15 @@ export default function AdminDashboardPage() {
 
     setIsPublishing(true);
     try {
+      // Upload pending poster & audio to Cloudinary ONLY upon form submit
+      const media = await uploadPendingMedia();
+      if (!media) {
+        setIsPublishing(false);
+        return;
+      }
+
+      showToast("Publishing master track to TunedIn Network...");
+
       const res = await fetch("/api/songs/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1168,10 +1289,10 @@ export default function AdminDashboardPage() {
           artist: [primaryArtist.trim()],
           album: albumCollection.trim(),
           duration: Math.round(audioDuration || 278),
-          audio_url: audioUrl,
-          audio_Id: audioKey || `tunedin/songs/${activeFileName.replace(/\s+/g, "_") || "master.mp3"}`,
-          poster_url: artworkUrl,
-          poster_Id: posterId || `poster_${Date.now()}`,
+          audio_url: media.finalAudioUrl,
+          audio_Id: media.finalAudioKey || `tunedin/songs/${activeFileName.replace(/\s+/g, "_") || "master.mp3"}`,
+          poster_url: media.finalPosterUrl,
+          poster_Id: media.finalPosterId || `poster_${Date.now()}`,
           genre: activeTags.length > 0 ? activeTags : ["Electronic"],
           plays: 0,
           likes: 0,
@@ -1192,6 +1313,9 @@ export default function AdminDashboardPage() {
     } catch {
       showToast("Error connecting to catalog API.");
     } finally {
+      setIsPublishing(false);
+    }
+  };
       setIsPublishing(false);
     }
   };
@@ -2077,7 +2201,11 @@ export default function AdminDashboardPage() {
                 {/* Dropzone Container */}
                 <div
                   className={styles.dropzoneContainer}
-                  onClick={() => artworkFileInputRef.current?.click()}
+                  onClick={() => {
+                    if (!artworkUrl && !artworkLocalPreview && !pendingArtworkFile) {
+                      artworkFileInputRef.current?.click();
+                    }
+                  }}
                   onDragOver={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -2086,15 +2214,21 @@ export default function AdminDashboardPage() {
                     e.preventDefault();
                     e.stopPropagation();
                     const file = e.dataTransfer.files?.[0];
-                    if (file) uploadArtworkFile(file);
+                    if (file) handleInitiateCrop(file);
                   }}
-                  title="Click or drop file to upload release artwork"
-                  style={{ cursor: "pointer" }}
+                  title={
+                    artworkUrl || artworkLocalPreview || pendingArtworkFile
+                      ? "Master artwork ready - use buttons below to crop or replace"
+                      : "Click or drop file to upload release artwork"
+                  }
+                  style={{
+                    cursor: artworkUrl || artworkLocalPreview || pendingArtworkFile ? "default" : "pointer",
+                  }}
                 >
-                  {artworkUrl ? (
+                  {artworkUrl || artworkLocalPreview ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img
-                      src={artworkUrl}
+                      src={artworkLocalPreview || artworkUrl}
                       alt="Release artwork preview"
                       className={styles.dropzoneBgImage}
                     />
@@ -2103,25 +2237,78 @@ export default function AdminDashboardPage() {
                   <div className={styles.dropzoneContent}>
                     <div className={styles.dropzoneIconWrapper}>
                       <span className="material-symbols-outlined text-[24px]">
-                        {isUploadingArtwork ? "hourglass_top" : artworkUrl ? "image" : "cloud_upload"}
+                        {isUploadingArtwork
+                          ? "hourglass_top"
+                          : pendingArtworkFile
+                          ? "crop_square"
+                          : artworkUrl
+                          ? "verified"
+                          : "cloud_upload"}
                       </span>
                     </div>
                     <p className={styles.dropzoneTitle}>
                       {isUploadingArtwork
-                        ? "Uploading to Cloud..."
+                        ? "Uploading to Cloudinary..."
+                        : pendingArtworkFile
+                        ? "1:1 Artwork Staged"
                         : artworkUrl
-                        ? "Cover Artwork Active"
+                        ? "1:1 Master Artwork Active"
                         : "Drop Release Artwork"}
                     </p>
                     <p className={styles.dropzoneSub}>
-                      {artworkUrl ? "Click to replace cover artwork" : "or browse local disk directory"}
+                      {pendingArtworkFile
+                        ? "Framed • Uploads to Cloudinary on Submit"
+                        : artworkUrl
+                        ? "1:1 Square Master Conformed"
+                        : "or browse local disk directory"}
                     </p>
-                    <span className={styles.dropzoneSpecs}>3000x3000px • Max 15MB • JPG/PNG</span>
+                    <span className={styles.dropzoneSpecs}>
+                      {artworkUrl || artworkLocalPreview || pendingArtworkFile
+                        ? "1200x1200px Lossless 1:1"
+                        : "3000x3000px • Max 15MB • JPG/PNG"}
+                    </span>
                   </div>
-                  <span className={styles.replacePill}>
-                    {isUploadingArtwork ? "Uploading..." : artworkUrl ? "Replace Artwork" : "Upload Artwork"}
-                  </span>
+                  {!artworkUrl && !artworkLocalPreview && !pendingArtworkFile && (
+                    <span className={styles.replacePill}>
+                      {isUploadingArtwork ? "Uploading..." : "Upload Artwork"}
+                    </span>
+                  )}
                 </div>
+
+                {/* Quick Action Buttons for Active or Staged Artwork */}
+                {(artworkUrl || artworkLocalPreview || pendingArtworkFile) && (
+                  <div className={styles.artworkQuickActions}>
+                    <button
+                      type="button"
+                      className={styles.artworkQuickActionBtn}
+                      onClick={handleOpenCropExisting}
+                      title="Adjust position, zoom, and framing in 1:1 square"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">crop</span>
+                      <span>Crop / Adjust (1:1)</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.artworkQuickActionBtnSecondary}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        artworkFileInputRef.current?.click();
+                      }}
+                      title="Pick a different image file"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">swap_horiz</span>
+                      <span>Replace</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.artworkQuickActionBtnDanger}
+                      onClick={handleRemoveArtwork}
+                      title="Remove current artwork"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">delete</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Chroma Swatches */}
                 <div className={styles.swatchesPanel}>
@@ -2315,7 +2502,7 @@ export default function AdminDashboardPage() {
                       e.stopPropagation();
                       setIsAudioDragOver(false);
                       const file = e.dataTransfer.files?.[0];
-                      if (file) uploadAudioFile(file);
+                      if (file) handleSelectAudioFile(file);
                     }}
                     onClick={() => audioFileInputRef.current?.click()}
                     title="Click or drop file to upload master audio track"
@@ -2334,12 +2521,18 @@ export default function AdminDashboardPage() {
                     </div>
                     <div className={styles.audioDropzoneTextCol}>
                       <h4 className={styles.audioDropzoneTitle}>
-                        {isUploadingAudio ? "Uploading & Staging Master Audio..." : "Upload Music / Audio Master Track"}
+                        {isUploadingAudio
+                          ? "Uploading Audio Master to Cloudinary..."
+                          : pendingAudioFile
+                          ? "Master Audio Staged (Uploads on Submit)"
+                          : "Upload Music / Audio Master Track"}
                         <span className={styles.losslessBadge}>Master Ingestion</span>
                       </h4>
                       <p className={styles.audioDropzoneSubtitle}>
                         {isUploadingAudio
-                          ? "Uploading file stream to Cloudinary (tunedin/songs) and extracting duration..."
+                          ? "Uploading file stream to Cloudinary (tunedin/songs)..."
+                          : pendingAudioFile
+                          ? `Staged master audio "${pendingAudioFile.name}" • Ready for preview & form submission`
                           : "Drag & drop your master audio track here, or click to browse local files"}
                       </p>
                       <div className={styles.audioDropzoneMetaRow}>
@@ -2432,6 +2625,8 @@ export default function AdminDashboardPage() {
                           <span style={{ fontSize: "11px", color: "#5f5e5e", marginTop: "2px" }}>
                             {isUploadingAudio
                               ? "Uploading Audio Master to Cloudinary..."
+                              : pendingAudioFile
+                              ? "Master Audio Staged (Uploads to Cloudinary on Submit)"
                               : "Master Audio Engine • Direct Cloudinary Stream"}
                           </span>
                         </div>
@@ -2701,7 +2896,11 @@ export default function AdminDashboardPage() {
                     </span>
                     <span>
                       {isPublishing
-                        ? "Publishing to Network..."
+                        ? isUploadingArtwork
+                          ? "Uploading Poster to Cloudinary..."
+                          : isUploadingAudio
+                          ? "Uploading Audio to Cloudinary..."
+                          : "Publishing to Network..."
                         : isFormValid
                         ? "Publish to TunedIn Network"
                         : `Submit Form (${validDetailsCount}/7 Details)`}
@@ -4648,6 +4847,16 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* 1:1 Aspect Ratio Artwork Position & Cropping Modal */}
+      <ImageCropModal
+        isOpen={isCropModalOpen}
+        imageSrc={cropImageSrc}
+        fileName={pendingArtworkFileName}
+        onClose={() => setIsCropModalOpen(false)}
+        onCropComplete={handleCropComplete}
+        isUploading={isUploadingArtwork}
+      />
     </div>
   );
 }

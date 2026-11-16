@@ -972,6 +972,82 @@
   transform: translateY(0);
 }
 
+/* Artwork Quick Actions (Crop / Edit, Replace, Remove) */
+.artworkQuickActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.artworkQuickActionBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #FFF2EB;
+  color: #A03B00;
+  border: 1px solid rgba(242, 100, 25, 0.35);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.artworkQuickActionBtn:hover {
+  background: #F26419;
+  color: #ffffff;
+  border-color: #F26419;
+  box-shadow: 0 4px 14px rgba(242, 100, 25, 0.28);
+  transform: translateY(-1px);
+}
+
+.artworkQuickActionBtnSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #5F5E5E;
+  border: 1px solid #E6E2DA;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.artworkQuickActionBtnSecondary:hover {
+  background: #F5F2EA;
+  color: #1B1C18;
+  border-color: #D3CEC4;
+}
+
+.artworkQuickActionBtnDanger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #B91C1C;
+  border: 1px solid #FEE2E2;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.artworkQuickActionBtnDanger:hover {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+  color: #991B1B;
+}
+
 /* Palette Swatches */
 .swatchesPanel {
   padding: 0.75rem;
