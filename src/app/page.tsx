@@ -1316,9 +1316,6 @@ export default function AdminDashboardPage() {
       setIsPublishing(false);
     }
   };
-      setIsPublishing(false);
-    }
-  };
 
   const handleDeleteTrack = async (id: string, name: string) => {
     try {
